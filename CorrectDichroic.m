@@ -25,9 +25,9 @@ if( AcqInfo.MultiCam )
             chan = 'yellow';
         end
         if( idx == 1 )
-            Cam1List{end+1} = [chan '.dat'];
+            Cam1List{end+1} = [DataFolder chan '.dat'];
         else
-            Cam2List{end+1} = [chan  '.dat'];
+            Cam2List{end+1} = [DataFolder chan  '.dat'];
         end 
     end
     clear NbIllum ind idx chan
@@ -113,8 +113,9 @@ opt.GrowthFactor = 1.05;
 
 opt.Epsilon = 1.5e-6;
 
-% opt.InitialRadius = 2.5e-3; %old
-opt.InitialRadius = 1e-4;
+% opt.InitialRadius = 2.5e-3; %old 
+opt.InitialRadius = 1e-3; % NEW, good!
+% opt.InitialRadius = 1e-4;
 
 % opt.MaximumIterations = 100; %old
 opt.MaximumIterations = 200;
@@ -128,7 +129,9 @@ tform.T = InitialT.T*tform.T;
 figure(2);
 imshowpair(imwarp(iC2,tform,'OutputView', imref2d(size(iC1))), iC1);
 
+input('show video')
 figure(3)
+title(DataFolder)
 for ind = 1:30
     imagesc(iC1)
     pause(0.2)

@@ -1,3 +1,5 @@
+%% preprocessing GCaMP pipeline CaCl project
+
 %% Manually search for the best recordings:
 % CompareMovementRecordings('/media/mbakker/PJM - HDD - 2/Marleen/GCaMP/');
 % CompareMovementRecordings('/media/mbakker/Microstroke-II/Marleen/GCaMP/');
@@ -235,7 +237,7 @@ for ind = 1:size(Recordings,1)
 % hemocompute
 % align frames
 % normalize LPF
-    
+% end
 
 % check what has been done by toolbox already
 LogBookMouse = LogBook(find(matches(LogBook.Subject, Mouse)),:); %get everything for mouse

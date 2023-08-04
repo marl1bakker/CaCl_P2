@@ -9,7 +9,6 @@ if( ~strcmp(directory(end), filesep) )
 end
 
 % make a list of folders with acquisitions and mice
-
 NrOfMice = size(dir([directory 'M*']),1); 
 Mice = dir([directory 'M*']);
 % Mice = Mice(3:end);
@@ -21,8 +20,9 @@ for index = 1:NrOfMice
     
     DataFolder = [directory Mouse filesep];
     AcqMouse = dir([DataFolder 'M*']); % get all the folders/acquisitions of a certain mouse
+    AcqMouse = AcqMouse([AcqMouse.isdir] == 1); % get only folders
     
-    for ind = 1:(size(AcqMouse,1)) % starts at 3 because you also have . and ..
+    for ind = 1:(size(AcqMouse,1)) % 
         AcqList{end+1} = [DataFolder AcqMouse(ind).name];
     end
 

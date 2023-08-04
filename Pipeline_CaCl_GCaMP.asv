@@ -252,7 +252,6 @@ LogBookMouse = LogBookMouse(find(matches(LogBookMouse.Acquisition, Acquisition))
     if( isempty(varlist) || ~isfield(anaReg.HemoCorrection, 'ended') )... %if not done in pipeline before    
             && ManualInput == 1
         
-        
             % and if not done in toolbox before
 
         
