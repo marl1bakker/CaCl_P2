@@ -1,9 +1,11 @@
 %% preprocessing GCaMP pipeline CaCl project
+% Start here for the pipeline. After this step, do
+% Umit_Pipeline_CaCl_GCaMP. After that, do Pipeline_CaCl_GCaMP. 
 
-%% Manually search for the best recordings:
+
+%% Manually search for the best recordings, make RecordingOverview:
 % CompareMovementRecordings('/media/mbakker/PJM - HDD - 2/Marleen/GCaMP/');
 % CompareMovementRecordings('/media/mbakker/Microstroke-II/Marleen/GCaMP/');
-
 
 %% Transfer recordings
 % % Then make sure you have all the right recordings in the same place:
@@ -33,52 +35,53 @@ ManualInput = 1;
 %% Pick right recording
 load('/home/mbakker/P2_scripts/MarleenP2/RecordingOverview.mat')
 Recordings = [RecordingOverview.A1; RecordingOverview.A2; RecordingOverview.A3];
+% Recordings = [RecordingOverview.A2];
+% Recordings = RecordingOverview{1,4};
 Mice = [RecordingOverview.Mouse; RecordingOverview.Mouse; RecordingOverview.Mouse];
+% Mice = [RecordingOverview.Mouse];
+% Mice = {'M13'};
 
 SaveDir = '/media/mbakker/GDrive/P2/GCaMP';
 
-load('/media/mbakker/GDrive/P2/GCaMP/LogBook.mat') % to check later if it's already done by toolbox
+% load('/media/mbakker/GDrive/P2/GCaMP/LogBook.mat') % to check later if it's already done by toolbox
 
 %% Start going per recording
 for ind = 1:size(Recordings,1)
     Mouse = Mice{ind};
     DataFolder = Recordings{ind};
+    fs = strfind(DataFolder, '-');
+    Acq = DataFolder(fs(end-1)+1:fs(end)-1);
+    clear fs
     
     if( ~strcmp(DataFolder(end), filesep) )
         DataFolder = [DataFolder filesep];
     end
     
-    %The place that you get the data from is different than the one you save it in.
-%     %old
-%     seps = strfind(DataFolder, filesep);
-%     SaveFolder = [SaveDir DataFolder(seps(end-2):end)];
-%     
     % Save to work with UmIToolbox
     SaveFolder = [SaveDir filesep Mouse filesep DataFolder(end-5:end) 'CtxImg' filesep];    
     
     if ~exist(SaveFolder, 'dir')
-        mkdir([SaveFolder]);
+        mkdir(SaveFolder);
     end
     
     anaReg = matfile([SaveFolder 'anaReg.mat'] ,'Writable',true);
-    disp(Mouse)
+    fprintf(['.......... \n \n' Mouse '\n']);
+%     disp(Mouse)
     disp(DataFolder(end-9:end-1))
     
-
     %% ImagesClassification
     disp('ImagesClassification... ');
     varlist = who(anaReg,'ImagesClassification');
     if( isempty(varlist) || ~isfield(anaReg.ImagesClassification, 'ended') ) %|| is "or" maar kijkt eerst of de eerste klopt voordat het naar de tweede kijkt
-%           disp('Running...')
         anaReg.ImagesClassification = [];
         ImgClass.started = datestr(now);
         try
-            ImagesClassification(DataFolder, SaveFolder, 1, 1, 1, 0, 'Internal-main');
+%             ImagesClassification(DataFolder, SaveFolder, 1, 1, 1, 0, 'Internal-main');
+            ImagesClassification(DataFolder, SaveFolder, 1, 1, 0);
             ImgClass.ended = datestr(now);
             disp('ImageClassification Done')
         catch
             ImgClass.error = datestr(now);
-%             anaReg.ImagesClassification = ImgClass;
             disp(['ImagescClassification error ' DataFolder])
             return;
         end
@@ -101,7 +104,6 @@ for ind = 1:size(Recordings,1)
         catch
             MarkMov.error = datestr(now);
             disp(['Movement Marking error ' DataFolder])
-%             return;
         end
         anaReg.MarkMovement = MarkMov;
         clear MarkMov;
@@ -110,7 +112,7 @@ for ind = 1:size(Recordings,1)
     end
     
     %% Correct For Dichroic Mirror shift
-    disp('Dichroic correction...'); 
+    disp('Dichroic Correction...'); 
     varlist = who(anaReg,'CorrectDichroic');
     
     if( isempty(varlist) || ~isfield(anaReg.CorrectDichroic, 'ended') )...
@@ -123,12 +125,11 @@ for ind = 1:size(Recordings,1)
             disp('Dichroic Correction done');
         catch
             CorrDi.error = datestr(now);
-%             anaReg.CorrectDichroic = CorrDi;
             disp(['CorrectDichroic error' DataFolder]);
             return;
         end
         anaReg.CorrectDichroic = CorrDi;
-        clear Corrdi;
+        clear CorrDi;
     else
        disp('Dichroic Correction already done');
     end
@@ -148,10 +149,7 @@ for ind = 1:size(Recordings,1)
                 fid = fopen([SaveFolder char(datfile) '.dat']);
                 dat = fread(fid, inf, '*single');
                 dat = reshape(dat, 512, 512, []);
-%                 imagesc(dat(:,:,23))
                 dat = fliplr(dat);
-%                 figure()
-%                 imagesc(dat(:,:,23))
                 
                 disp(['Overwriting ' char(datfile) '.dat file'])
                 fclose(fid);
@@ -178,6 +176,8 @@ for ind = 1:size(Recordings,1)
     
         
     %% ROI creating + mask
+    disp('Mask and ROI creation...')
+    
     if ManualInput == 1
         if exist([SaveDir filesep Mouse filesep 'ImagingReferenceFrame.mat'], 'file') && ...
                 exist([SaveDir filesep Mouse filesep 'ROImasks_data.mat'], 'file')
@@ -195,6 +195,14 @@ for ind = 1:size(Recordings,1)
             imagesc(green_im)
             fclose(fid); 
             
+            green_im = green_im./mean(green_im(:));
+            green_im = (green_im-min(green_im(:)))./(max(green_im(:))-min(green_im(:)));
+            green_im(green_im < 0) = 0;
+            green_im(green_im > 1) = 1;
+            green_im = adapthisteq(green_im);
+            figure
+            imagesc(green_im)
+            
             ROImanager(fluo_im)
             f = msgbox(["In ROImanager, do the following steps:"; ...
                 "-  Image – Set origin – New – drag to bregma, right mouse-click to set"; ...
@@ -206,11 +214,18 @@ for ind = 1:size(Recordings,1)
                 "-  File – Save as… - ROImasks_data.mat in mouse folder"]);            
             input('Make reference and ROI')
 
-            SeedGenerator(SaveFolder) %new 15-6-23, have to test
+            % SeedGenerator only necessary if you do centroids, not whole
+            % regions.
+%             SeedGenerator(SaveFolder) %new 15-6-23, have to test
+            ClusterRois(SaveFolder, 1) %new 11-8-23 on this position, have to test
+            % the 1 in clusterrois is for overwrite, because if you get to
+            % this point, you will have just made the ROI so you want to
+            % overwrite whatever was already there before. 
         end
     elseif ~exist([SaveDir filesep Mouse filesep 'ImagingReferenceFrame.mat'], 'file')
         disp(['To do: ROI & Mask for ' Mouse ])
     end
+    
     
     %% Remove fluo 475 files
     % *** BE CAREFUL WITH THIS ***
@@ -230,106 +245,55 @@ for ind = 1:size(Recordings,1)
         end
     end
     
-    %% umIT
-% umIToolbox
-
-% hemocorrection
-% hemocompute
-% align frames
-% normalize LPF
-% end
-
-% check what has been done by toolbox already
-LogBookMouse = LogBook(find(matches(LogBook.Subject, Mouse)),:); %get everything for mouse
-
-%get acquisition
-Acquisition = DataFolder(end-5:end-1);
-LogBookMouse = LogBookMouse(find(matches(LogBookMouse.Acquisition, Acquisition)),:);
+    %% Coregistration A1 - A2 - A3
+    %It should work, finished it 23-8-23. Haven't tested
+    %it. Already did the green.dat file for M13, A2-R1. None of the other
+    %files though. Is the correction that we do for A1 saved in the
+    %fluo_567 AND the green and red files during the ROI making? If yes,
+    %there is no problem. If no, we have to make sure that all the images
+    %are upright first. 
+    %Have to recalculate the HbO and HbR files for A2 and A3, as well as
+    %any fluo files. 
+    disp('Coregistration A1-A2-A3...')
+    varlist = who(anaReg,'Coreg_acquisitions');
     
-    %% HemoCorrection
-    
-    disp('Hemodynamic correction...'); 
-    varlist = who(anaReg,'HemoCorrection');
-    
-    if( isempty(varlist) || ~isfield(anaReg.HemoCorrection, 'ended') )... %if not done in pipeline before    
-            && ManualInput == 1
+    if isequal(Acq, 'A1') 
+        disp('No coregistration, Acquisition is A1')
+        anaReg.Coreg_acquisitions = [];
+        Coreg.started = datestr(now);
+        Coreg.ended = datestr(now);
+        anaReg.Coreg_acquisitions = Coreg;
+        clear Coreg
         
+    elseif ManualInput == 0
+        disp('Coregistration skipped')
         
-            % and if not done in toolbox before
-
+    elseif ( isempty(varlist) || ~isfield(anaReg.Coreg_acquisitions, 'ended') )
+        anaReg.Coreg_acquisitions = [];
+        Coreg.started = datestr(now);
         
-        anaReg.HemoCorrection = [];
-        hemcorr.started = datestr(now);
+        eval(['allinfomouse = RecordingOverview(ismember(RecordingOverview.' Acq ', ''' DataFolder(1:end-1) '''),:);']);
+        pathFixed = allinfomouse.A1{:}; %get folder of A1 for this mouse
+        pathFixed = [SaveDir filesep Mouse filesep pathFixed(end-4:end) filesep 'CtxImg' filesep];
+        
         try
-            [outData, metaData] = run_HemoCorrection(SaveFolder, varargin);
-            
-            hemcorr.ended = datestr(now);
-            disp('Hemodynamic Correction done');
+            Coregistration(pathFixed, SaveFolder);
+            Coreg.ended = datestr(now);
+            disp('Coregistration done.')
         catch
-            hemcorr.error = datestr(now);
-            anaReg.HemoCorrection = hemcorr;
-            disp(['Hemodynamic Correction error ' DataFolder]);
-            return;
-        end
-        anaReg.HemoCorrection = hemcorr;
-        clear hemcorr;
-    else
-       disp('Hemodynamic Correction already done');
-    end
-    
-    
-    
-end
-
-
-
-
-
-%% After umIT
-load('/home/mbakker/P2_scripts/MarleenP2/RecordingOverview.mat')
-% RecordingOverview = RecordingOverview(1:4,:); % subset M13-M16 A1
-% Recordings = RecordingOverview.A1;
-% Mice = RecordingOverview.Mouse;
-Recordings = [RecordingOverview.A1; RecordingOverview.A2; RecordingOverview.A3];
-Mice = [RecordingOverview.Mouse; RecordingOverview.Mouse; RecordingOverview.Mouse];
-
-SaveDir = '/media/mbakker/GDrive/P2/GCaMP';
-
-for ind = 1:size(Recordings,1)
-    Mouse = Mice{ind};
-    DataFolder = Recordings{ind};
-    
-    if( ~strcmp(DataFolder(end), filesep) )
-        DataFolder = [DataFolder filesep];
-    end
-
-    SaveFolder = [SaveDir filesep Mouse filesep DataFolder(end-5:end) 'CtxImg' filesep];      
-    anaReg = matfile([SaveFolder 'anaReg.mat'] ,'Writable',true);
-    disp(Mouse)
-    disp(DataFolder(end-9:end-1))
-    
-        %% Get Timecourses
-    disp('Get Timecourses for ROI, fluo & HbO...');
-    varlist = who(anaReg,'Timecourses');
-    if( isempty(varlist) || ~isfield(anaReg.Timecourses, 'ended') ) %|| is "or" maar kijkt eerst of de eerste klopt voordat het naar de tweede kijkt
-        anaReg.Timecourses = [];
-        Timcor.started = datestr(now);
-        try
-            GetTimecourses(SaveFolder) 
-            Timcor.ended = datestr(now);
-            disp('Timecourse calculation Done')
-        catch
-            Timcor.error = datestr(now);
-            disp(['Timecourse calculation error ' SaveFolder])
+            Coreg.error = datestr(now);
+            disp(['Coregistration error ' DataFolder])
 %             return;
         end
-        anaReg.Timecourses = Timcor;
-        clear Timcor;
+        anaReg.Coreg_acquisitions = Coreg;
+        clear Coreg
+        
     else
-        disp('Timecourse Calculation already done');
+        disp('Coregistration already done');
+        
     end
-
-    %% Make corr Matrix single subject
-    SingleSubjectCorrMatrix(SaveFolder)
-    
+        
 end
+
+
+

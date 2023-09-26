@@ -19,8 +19,8 @@ end
 aF = aF(:,:,2:end)&~aF(:,:,1:(end-1));
 aF = cat(3, false(size(aF,1),size(aF,2)), aF);
 
-% fid = fopen('HbO.dat');
-fid = fopen([DataFolder 'HbONoFilt.dat']);
+fid = fopen('HbO.dat');
+% fid = fopen([DataFolder 'HbONoFilt.dat']);
 dH = fread(fid, inf, '*single');
 dH = reshape(dH,size(dF));
 clear zF;
