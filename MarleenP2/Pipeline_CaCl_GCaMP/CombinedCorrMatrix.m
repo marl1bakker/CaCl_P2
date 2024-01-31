@@ -13,7 +13,7 @@ if ~exist('dataname', 'var')
 elseif  length(dataname) < 4 || ( ~strcmp(dataname(end-3:end), '.dat') )
     dataname = [dataname '.dat'];
 end
-savename = ['timecourses_' dataname];
+savename = ['timecourses_' dataname(1:end-4) '_centroids'];
 
 if ~exist('Acquisition', 'var')
     Acquisition = 'A1';
@@ -58,6 +58,10 @@ if size(Grouping, 2)>1
 else
     Grouping = char(Grouping);
 end
+
+%% Table
+
+
 %% Single group Corr matrix
 % Start going per group, per mouse
 for index = 1:size(groups,1) % Go per group
@@ -75,6 +79,10 @@ for index = 1:size(groups,1) % Go per group
         eval(['DataFolder = [Mousegroup.' Acquisition '{ind} filesep];']);
         SaveFolder = [Mousegroup.SaveDirectory{ind} filesep Mouse filesep DataFolder(end-5:end) 'CtxImg' filesep];
         
+        if matches(Mouse, 'M23') && matches(dataname, 'hemoCorr_fluo.dat')
+            continue %M23 has not enough fluorescence, so skip for fluo.
+        end
+        
         if exist([SaveFolder savename '.mat'], 'file')
             load([SaveFolder savename '.mat'], 'AllRois');
             
@@ -91,16 +99,25 @@ for index = 1:size(groups,1) % Go per group
             %         clear DataFolder SaveFolder index insertrow missingrois roismouse Mouse
             
             Timecourses = cell2mat(AllRois(:,2));
+            load([SaveFolder 'MovMask.mat'], 'MovMask');
+            Timecourses = Timecourses .* MovMask; %to remove movement. I checked, the difference between corr with and without movement is very small, mostly 0.01 differences. checked for one mouse (M15-A1)       
+            Timecourses(Timecourses == 0) = nan;
             Timecourses = Timecourses(:,1:9000);
             Timecourses(3,:) = [];
             Timecourses(7,:) = [];
-            
+
             eval([group 'N = ' group 'N+1;'])
         else
             Timecourses = NaN(8, 9000);
         end
         
-        CorrMat = corr(Timecourses');
+        CorrMat = corr(Timecourses', 'rows','pairwise');
+        
+        if any(CorrMat < 0.4, 'all')
+            imagesc(CorrMat, [0 1]);
+            disp(Mouse)
+        end
+        
         allcorrmatrices(ind,:,:) = CorrMat;
         clear Timecourses CorrMat AllRois
         
@@ -109,50 +126,29 @@ for index = 1:size(groups,1) % Go per group
     AvCorrMat = mean(allcorrmatrices, 1, 'omitnan');
     
     %% Plot per group
-    f = figure('InvertHardcopy','off','Color',[1 1 1]);
-    ax = gca;
-    data = tril(reshape(AvCorrMat, size(allrois,2), size(allrois,2)));
-    data(data == 0 ) = NaN;
-    data(data == 1 ) = NaN; 
-    imagesc(ax, data, 'AlphaData', ~isnan(data), [0 1])
-    ax.Box = 'off';
-    axis image;
-        
-    yticks(1:size(allrois,2));
-    yticklabels(allrois);
-    ay = get(gca,'YTickLabel');
-    set(gca,'YTickLabel',ay,'FontSize',15, 'FontWeight', 'bold', 'Linewidth', 2);
-    xticks(1:size(allrois,2));
-    xticklabels(allrois);
-    xtickangle(90)
-    load('/media/mbakker/data1/Hypoxia/SeedPixelCorrMap/NL.mat');
-    colormap(NL)
-    colorbar
-    f.Position = [10 10 1500 1500]; %for size of screen before saving
+    f = PlotCorrMatrix(AvCorrMat, allrois, [0 1]);
+
     title([dataname ' ' group ' ' Acquisition], 'interpreter', 'none')
     eval(['ngroup = ' group 'N;'])
     subtitle(['n = ' num2str(ngroup)])
     
-    saveas(gcf, ['/media/mbakker/GDrive/P2/GCaMP/CombinedCorrMatrices/PerGroup/' dataname '_' Acquisition '_' group '.tiff']);
-    saveas(gcf, ['/media/mbakker/GDrive/P2/GCaMP/CombinedCorrMatrices/PerGroup/' dataname '_' Acquisition '_' group '.eps'], 'epsc');
+    saveas(gcf, ['/media/mbakker/GDrive/P2/GCaMP/CombinedCorrMatrices/PerGroup/' dataname(1:end-4) filesep dataname(1:end-4) '_' Acquisition '_' group '.tiff']);
+    saveas(gcf, ['/media/mbakker/GDrive/P2/GCaMP/CombinedCorrMatrices/PerGroup/' dataname(1:end-4) filesep dataname(1:end-4) '_' Acquisition '_' group '.eps'], 'epsc');
     
     close(f)
     
     eval([group '_allcorrmatrices = allcorrmatrices;']);
-%     eval(['Mice' group '= Mousegroup;']);
 end
 
 clear allcorrmatrices AvCorrMat ax ay data f group idx ind index Mouse ngroup NL
 
-%% Differences between groups
-
+%% Get differences between groups
 % z transform fisher
 for ind = 1:size(groups, 1)
    eval([ groups{ind} '_allcorrmatrices = atanh(' groups{ind} '_allcorrmatrices);'])
 end
 
 diff = [];
-% titles = {};
 groupscompared = {};
 codesdone = [];
 
@@ -175,39 +171,16 @@ for ind1 = 1:size(groups,1)
         eval(['diffadd = mean(' group1 '_allcorrmatrices, 1, ''omitnan'') - mean(' group2 '_allcorrmatrices, 1, ''omitnan'');']);
         diffadd = reshape(diffadd, size(allrois,2)*size(allrois,2),1);
         diff = [diff, diffadd];
-%         titles = [titles; strcat(group1, '-', group2)];
         groupscompared = [groupscompared; groups(ind1), groups(ind2)];
         codesdone = [codesdone; paircode];
     end
 end
 clear group1 group2 codegroup1 codegroup2 ind1 ind2 paircode 
 
-%% plot
+%% plot CorrMatrix of differences between groups
 for ind = 1:size(diff, 2) %how many comparisons do you have
-%     groupscompared = titles{ind};
-    data = diff(:,ind);
-    data = reshape(data, size(allrois,2),size(allrois,2));
-    
-    f = figure('InvertHardcopy','off','Color',[1 1 1]);
-    ax = gca;
-    data = tril(data);
-    data(data == 0 ) = NaN;
-    data(data == 1 ) = NaN;
-    imagesc(ax, data, 'AlphaData', ~isnan(data), [-0.5 0.5])
-    ax.Box = 'off';
-    axis image;
-    
-    yticks(1:size(allrois,2));
-    yticklabels(allrois);
-    ay = get(gca,'YTickLabel');
-    set(gca,'YTickLabel',ay,'FontSize', 15, 'FontWeight', 'bold', 'Linewidth', 2);
-    xticks(1:size(allrois,2));
-    xticklabels(allrois);
-    xtickangle(90)
-    load('/home/mbakker/P2_scripts/MarleenP2/NL.mat');
-    colormap(NL)
-    colorbar
-    f.Position = [10 10 1500 1500]; %for size of screen before saving
+
+    f = PlotCorrMatrix(diff(:,ind), allrois, [-0.5 0.5]);
     
     t = ['Difference ' groupscompared{ind, 1} ' - ' groupscompared{ind,2}, ...
         ', ' Acquisition];
@@ -216,12 +189,13 @@ for ind = 1:size(diff, 2) %how many comparisons do you have
     eval(['N2 = num2str(' groupscompared{ind,2} 'N);']);
     subtitle(['n ' groupscompared{ind,1} ' = ' N1 ' --- n ' groupscompared{ind, 2} '= ' N2])
     
-    saveas(gcf, ['/media/mbakker/GDrive/P2/GCaMP/CombinedCorrMatrices/Differences/' dataname '_' groupscompared{ind,1} '-' groupscompared{ind,2} '_' Acquisition '.tiff']);
-    saveas(gcf, ['/media/mbakker/GDrive/P2/GCaMP/CombinedCorrMatrices/Differences/' dataname '_' groupscompared{ind,1} '-' groupscompared{ind,2} '_' Acquisition '.eps'], 'epsc');
+    saveas(gcf, ['/media/mbakker/GDrive/P2/GCaMP/CombinedCorrMatrices/Differences/' dataname(1:end-4) filesep dataname(1:end-4) '_' groupscompared{ind,1} '-' groupscompared{ind,2} '_' Acquisition '.tiff']);
+    saveas(gcf, ['/media/mbakker/GDrive/P2/GCaMP/CombinedCorrMatrices/Differences/' dataname(1:end-4) filesep dataname(1:end-4) '_' groupscompared{ind,1} '-' groupscompared{ind,2} '_' Acquisition '.eps'], 'epsc');
     
     close(f)
-
 end
+
+%% Plot Connectivity graph
 
 %% stats
 
@@ -229,24 +203,137 @@ end
 
 end %of fucntion
 
-% %% Make a group column in RecordingOverview or use an existing one. 
-% switch size(Grouping,2)
-%   
-%     case 0
-%         disp('No grouping variable selected, function exited')
-%         return
-%         
-%     case 1
-%         groups = eval(['cellstr(unique(RecordingOverview.' Grouping{1} '));']);
-%         
-%     otherwise %more than 1 grouping variable - make a Combi group
-%         RecordingOverview.Combi = cellstr(repmat(' ', size(RecordingOverview,1),1));
-%         for ind = 1:size(Grouping, 2)
-%             eval(['currentgroup = cellstr(RecordingOverview.' Grouping{ind} ');' ]);
-%             RecordingOverview.Combi = strcat(RecordingOverview.Combi, currentgroup);
-%         end
-%         groups = unique(RecordingOverview.Combi);
-%         Grouping = 'Combi';
-%         RecordingOverview.Combi = categorical(RecordingOverview.Combi);
-% end
-% clear currentgroup ind indx Possibilities ROItype
+
+function [f] = PlotCorrMatrix(data, allrois, axlims)
+    f = figure('InvertHardcopy','off','Color',[1 1 1]);
+    ax = gca;
+    data = tril(reshape(data, size(allrois,2), size(allrois,2)));
+    data(data == 0 ) = NaN;
+    data(data == 1 ) = NaN; 
+    imagesc(ax, data, 'AlphaData', ~isnan(data), axlims)
+    ax.Box = 'off';
+    axis image;
+        
+    yticks(1:size(allrois,2));
+    yticklabels(allrois);
+    ay = get(gca,'YTickLabel');
+    set(gca,'YTickLabel',ay,'FontSize',15, 'FontWeight', 'bold', 'Linewidth', 2);
+    xticks(1:size(allrois,2));
+    xticklabels(allrois);
+    xtickangle(90)
+    load('/home/mbakker/P2_scripts/MarleenP2/NL.mat');
+    colormap(NL)
+    colorbar
+    f.Position = [10 10 1500 1500]; %for size of screen before saving
+end
+
+
+function [overviewtable] = MakeTable(dataname, Overwrite)
+
+load('/home/mbakker/P2_scripts/MarleenP2/RecordingOverview.mat', 'RecordingOverview');
+SaveDir = '/media/mbakker/GDrive/P2/GCaMP';
+
+% Go with both grouping variables, so you can combine them later if need be
+Grouping = {'Group', 'Sex'};
+[groups, RecordingOverview] = GroupVariables(RecordingOverview, Grouping);
+
+% Grouping = 'Combi';
+Acquisitions = {'A1', 'A2', 'A3'};
+
+%% Make table with overview
+% make starting table
+varTypes = {'cell', 'categorical', 'categorical', 'categorical', 'categorical', ...
+    'categorical', 'single'};
+varNames = {'Mouse','Acquisition','ROI','Combi','Group','Sex','CorrMatrix'};
+overviewtable = table('Size', [1 size(varNames,2)], 'VariableTypes', varTypes, 'VariableNames', varNames);
+overviewtable.Mouse = 'dummy';
+overviewtable.Acquisition = 'A1';
+
+labels = {'Vis-R', 'Sen-R', 'Mot-R', 'Ret-R', 'Vis-L', 'Sen-L', 'Mot-L', 'Ret-L'};
+
+%check if table already exists. If so, and you dont have Overwrite on 1,
+%load the table
+if exist([SaveDir '/CombinedCorrMatrices/CorrMatTable_' dataname(1:end-4) '.mat'], 'file') && Overwrite == 0
+    load([SaveDir '/CombinedCorrMatrices/CorrMatTable_' dataname(1:end-4) '.mat'], 'overviewtable');
+elseif exist([SaveDir '/CombinedCorrMatrices/CorrMatTable_' dataname(1:end-4) '.mat'], 'file') && Overwrite == 1
+    disp('Correlation Matrix table already done, OVERWRITING MAT FILES')
+end
+
+for indacq = 1:size(Acquisitions, 2)
+    Acquisition = Acquisitions{indacq};
+    
+    for indgroup = 1:size(groups,1) % Go per group
+        group = groups{indgroup};
+%         disp(group);
+        eval(['idx = RecordingOverview.Combi == ''' group ''';'])
+        Mousegroup = RecordingOverview(idx,:);
+        
+        for indmouse = 1:size(Mousegroup, 1) %go per mouse
+            Mouse = Mousegroup.Mouse{indmouse};
+            temp = matches(overviewtable.Mouse, Mouse);
+            
+            eval(['DataFolder = [Mousegroup.' Acquisition '{indmouse} filesep];']);
+            SaveFolder = [Mousegroup.SaveDirectory{indmouse} filesep Mouse filesep DataFolder(end-5:end) 'CtxImg' filesep];
+        
+            %check if mouse is 23 (no fluo act), if there is a timecourse
+            %and if the mouse is already in the table
+            if matches(Mouse, 'M23') && matches(dataname, 'hemoCorr_fluo.dat')
+                continue
+            elseif ~exist([SaveFolder 'timecourses_' dataname(1:end-4) '_centroids.mat'], 'file')
+                disp([Mouse ' does not have timecourses_' dataname '.mat. Run GetTimecourses first.'])                
+                continue                 
+            elseif sum(temp) && sum(overviewtable(temp,:).Acquisition == Acquisition)
+%                 disp(['Mouse ' Mouse ' ' Acquisition ' already done - skipped'])
+                continue
+            end
+            
+            %get timecourses
+            load([SaveFolder 'timecourses_' dataname(1:end-4) '_centroids.mat'], 'AllRois');
+            Timecourses = cell2mat(AllRois(:,2));
+            
+            %get std of timecourses
+            StdAct = movstd(Timecourses, 10, 0, 2, 'omitnan'); %0 is for w, default. [0 10] is to make the window forward moving
+            
+            if size(StdAct, 2) >= 9000
+                StdAct = StdAct(:, 1:9000);
+            else
+                StdAct(:,end+1:9000) = missing;
+            end
+            
+            %get rid of movement
+            load([SaveFolder 'MovMask.mat'], 'MovMask');
+            MovMask = MovMask(1:9000);
+            StdAct = StdAct .* MovMask;
+            StdAct(StdAct == 0) = nan;
+            
+            %get rid of auditory, take average 
+            StdAct(3,:) = [];
+            StdAct(7,:) = [];
+            StdAct = mean(StdAct, 2, 'omitnan');
+            
+            %build table single mouse
+            tablemouse = table;
+            tablemouse.Mouse = cellstr(repmat(Mousegroup.Mouse{indmouse}, size(labels,2),1));
+            tablemouse.Acquisition = categorical(cellstr(repmat(Acquisition, size(labels,2),1)));
+            tablemouse.ROI = categorical(labels');
+            tablemouse.Combi = categorical(cellstr(repmat(group, size(labels, 2),1)));
+            tablemouse.Group = categorical(cellstr(repmat(Mousegroup.Group(indmouse), size(labels, 2),1)));
+            tablemouse.Sex = categorical(cellstr(repmat(Mousegroup.Sex(indmouse), size(labels, 2),1)));
+            tablemouse.StdAct = StdAct;
+        
+            %add mouse table to general table
+            overviewtable = [overviewtable; tablemouse];
+            
+            clear tablemouse StdAct DataFolder SaveFolder idx Timecourses
+        end % of mice    
+    end % of group
+end % of acq
+
+temp = matches(overviewtable.Mouse, 'dummy');
+if sum(temp)
+    overviewtable(temp,:) = [];
+end
+
+save([SaveDir '/Fluctuations/FluctTable_' dataname(1:end-4) '.mat'], 'overviewtable');
+
+end

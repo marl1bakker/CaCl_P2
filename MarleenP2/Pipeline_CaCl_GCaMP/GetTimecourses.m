@@ -23,7 +23,7 @@ if ~exist([DataFolder dataname '.dat'], 'file')
     return
 end
 
-savename = ['timecourses_' dataname];
+savename = ['timecourses_' dataname '_' option];
 
 if ~exist('Overwrite', 'var')
     Overwrite = 0;
@@ -78,6 +78,19 @@ if Overwrite == 1 || ~exist([DataFolder savename '.mat'], 'file')
             Signal = mean(dat(Mask(:), :),1);
             name = regions{ind};
             AllRois(end+1,:) = {Mask, Signal, name}; %voeg masker, timecourse (signaal) en naam toe aan matrix.
+            
+            % Sanity check
+            if (matches(dataname, 'hemoCorr_fluo')) && ...
+                    (mean(Signal) < 0.99 || mean(Signal) > 1.01)
+                disp(['*** GETTIMECOURSES NOT AV 1 FOR fluo ' DataFolder])
+                error('Signal not centered on 1')
+            elseif (matches(dataname, 'HbO') || matches(dataname, 'HbR')) && ...
+                    (mean(Signal) < -0.1|| mean(Signal) > 1.1)
+                plot(Signal)
+                disp(['*** GETTIMECOURSES NOT AV 1 FOR HbO or HbR ' DataFolder])
+%                 error('Signal not centered on 1')
+            end
+            
         else % if a certain region is missing, fill with nans
             Signal = NaN(1,size(dat,2), 'single');
             name = regions{ind};

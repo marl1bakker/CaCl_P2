@@ -34,6 +34,9 @@ switch size(Grouping,2)
         RecordingOverview.Codes = str2double(RecordingOverview.Codes);
         
     otherwise %more than 1 grouping variable - make a Combi group
+        %29-11-23 I canched the CompareMovementRecordings to include a
+        %combi group by default. This part of the script is thus not
+        %necessary but ill leave it in just to be safe.
         RecordingOverview.Combi = cellstr(repmat(' ', size(RecordingOverview,1),1));
         RecordingOverview.Codes = cellstr(repmat(' ', size(RecordingOverview,1),1));
         codes = zeros(size(RecordingOverview,1),1);
@@ -49,7 +52,7 @@ switch size(Grouping,2)
                 codes = codes + (ind2 .* contains(currentgroup, groupoptions{ind2}));
             end
             RecordingOverview.Codes = strcat(RecordingOverview.Codes, num2str(codes));
-            codes = zeros(32,1);
+            codes = zeros(size(RecordingOverview,1),1);
         end
         
         groups = [unique(RecordingOverview.Combi) unique(RecordingOverview.Codes)];

@@ -27,6 +27,9 @@ fclose(fid);
 dims = size(dat);
 dat = reshape(dat,[],dims(3));
 
+load([DataFolder 'MovMask.mat'], 'MovMask')
+dat(dat == 0) = nan;
+
 CorrSpread = NaN(size(regions,2), 15); %15 is a guess, i think we won't have regions that go over 15 loops
 
 for ind = 1:size(regions,2) %go per region
@@ -57,13 +60,13 @@ for ind = 1:size(regions,2) %go per region
     
     %     Orig_seed = Seed; %to have later?
     Seed = logical(Seed);
-    timecourse_seed = mean(dat(Seed(:), :),1);
+    timecourse_seed = mean(dat(Seed(:), :),1, 'omitnan');
 %     timecourse_seed = dat(iY, iX, :);
     
     periphery = 12;
     per_corrs = [];
 
-    [rho,~] = corr(timecourse_seed', timecourse_seed');
+    [rho,~] = corr(timecourse_seed', timecourse_seed', 'rows', 'complete'); %rows complete to ignore nan
     per_corr = mean(rho, 'all', 'omitnan');
     per_corrs = [per_corrs; per_corr];
     
@@ -85,7 +88,7 @@ for ind = 1:size(regions,2) %go per region
         timecourses_periphery = dat(periphery(:),:);
         
         %take correlation with seed
-        [rho, ~] = corr(timecourse_seed', timecourses_periphery');
+        [rho, ~] = corr(timecourse_seed', timecourses_periphery', 'rows', 'complete'); 
         per_corr = mean(rho, 'all', 'omitnan');
         per_corrs = [per_corrs; per_corr];
         
