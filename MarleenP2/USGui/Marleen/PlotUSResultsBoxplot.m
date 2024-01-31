@@ -1,14 +1,18 @@
 % NumberOfPlots = 'All' or 'Selection'
 % Side = 'L' or 'R'
 
-function PlotUSResultsBoxplot(ResultsUS, NumberOfPlots, Side)
+function PlotUSResultsBoxplot(ResultsUS, NumberOfPlots, Side, SaveDir)
 
 %% set up
+if ~exist("SaveDir", "var")
+    SaveDir = 'C:\Users\marle\OneDrive\Documenten\PhD\P2 - GCaMP - calcium rigidification project 1-8-22\Article\Figures\MatlabGenerated\US';
+end
+
 % Get good tables
 if matches(Side, 'R')
     ResultsUS = ResultsUS(ResultsUS.X == 1, :);
 elseif matches(Side, 'L')
-    ResultsUS = ResultsUS(ResultsUS.X == 1, :);
+    ResultsUS = ResultsUS(ResultsUS.X == 0, :);
 else
     disp('Side not recognized, take R as default.')
     ResultsUS = ResultsUS(ResultsUS.X == 1, :);
@@ -36,9 +40,14 @@ else
 end
 
 % Get example frame
-frames = GetFramesRecordingExample('C:\Users\marle\OneDrive\Documenten\MATLAB\P2\USGui\Marleen\US-example-data\Used - PWR1 -- 2023-03-31-15-30-26_M35 PW mode 4 right-2023-03-31-13-56-35_1.avi');
+examplefile = 'C:\Users\marle\OneDrive\Documenten\MATLAB\P2\USGui\Marleen\US-example-data\Used - PWR1 -- 2023-03-31-15-30-26_M35 PW mode 4 right-2023-03-31-13-56-35_1.avi';
+if ~exist(examplefile, 'file')
+    [examplefile, pathoffile] = uigetfile;
+    examplefile = [pathoffile examplefile];
+end
+frames = GetFramesRecordingExample(examplefile);
 
-% Get pvalues
+%% Get pvalues
 pvalues = NaN(1, size(results,2));
 for ind = 1:size(results, 2)
     CaCl = table2array(ResultsUS(matches(ResultsUS.CaClSham, 'CaCl'), results{ind}));
@@ -46,12 +55,17 @@ for ind = 1:size(results, 2)
 
     % check normal distr. with anderson darling test and homogeneity of
     % variance with vartest2
+    if size(CaCl,1)<4
+        disp([results{ind} ' - Not enough samples to do test'])
+        continue
+    end
+
     if adtest(CaCl) == 0 && adtest(Sham) == 0 && vartest2(CaCl, Sham) == 0
         % disp([results{ind} ' - All assumptions t-test met!']);
         [~,p] = ttest2(CaCl, Sham);
         pvalues(ind) = p;
     else
-        disp([results {ind} ' - Assumptions t-test not met. Find different statistical test.'])
+        disp([results{ind} ' - Assumptions t-test not met. Find different statistical test.'])
     end
 end
 
@@ -110,8 +124,8 @@ lgd.Layout.Tile = 'south';
 % title(t, 'Ultrasound Results Carotid Artery', 'FontSize', 20)
 
 %% save
-saveas(gcf, ['C:\Users\marle\OneDrive\Documenten\MATLAB\P2\USGui\Marleen\USboxplot_' Side '_' NumberOfPlots '.tiff'], 'tiff');
-saveas(gcf, ['C:\Users\marle\OneDrive\Documenten\MATLAB\P2\USGui\Marleen\USboxplot_' Side '_' NumberOfPlots '.epsc'], 'epsc');
+saveas(gcf, [SaveDir '\USboxplot_' Side '_' NumberOfPlots '.tiff'], 'tiff');
+saveas(gcf, [SaveDir '\USboxplot_' Side '_' NumberOfPlots '.epsc'], 'epsc');
 
 end
 

@@ -1,7 +1,7 @@
 %% bug patch when mouse multiplied
 %load .mat file of project
 % load('C:\Users\marle\OneDrive\Documenten\MATLAB\P2\USGui\M30-35.mat')
-load('C:\Users\marle\OneDrive\Documenten\MATLAB\P2\USGui\project_17-1-24.mat')
+% load('C:\Users\marle\OneDrive\Documenten\MATLAB\P2\USGui\project_17-1-24.mat')
 
 alreadydone = 'x';
 newdirectoryPairs = [];
