@@ -1,0 +1,351 @@
+function GetAverageCurves(DataFolder, NVCname, datanamefluocurves, datanamehbo, datanamehbr, datanamefluoactivations)
+%% set up
+if( ~strcmp(DataFolder(end), filesep) )
+    DataFolder = [DataFolder filesep];
+end
+
+if ~exist('NVCname', 'var') && matches(datanamefluocurves, 'hemoCorr_fluo')
+    NVCname = 'NVC_ROI';
+elseif ~exist('NVCname', 'var')
+    NVCname = ['NVC_ROI_' datanamefluocurves];
+end
+
+if ~exist('datanamefluoactivations', 'var')
+    datanamefluoactivations = 'hemoCorr_fluo';
+end
+
+if ~exist('datanamefluocurves', 'var')
+    datanamefluocurves = 'hemoCorr_fluo';
+    %     datanamefluocurves = 'fluo_nofilt';
+end
+
+if ~exist('datanamehbo', 'var')
+    datanamehbo = 'HbO';
+    datanamehbr = 'HbR';
+end
+
+if ~exist([DataFolder datanamefluoactivations '.dat'], 'file')
+    disp([datanamefluoactivations ' could not be found, function exited'])
+    return
+end
+
+if ~exist([DataFolder datanamehbo '.dat'], 'file')
+    disp([datanamehbo ' could not be found, function exited'])
+    return
+end
+
+Specs = table('Size', [1 7], 'VariableNames', ...
+    {'ROI', 'DelaySec', 'DelayFrames', 'ResponseStrength', 'GCaMPPeak', ...
+    'HbOPeak', 'HbRPeak'}, 'VariableTypes', ...
+    {'cell', 'single', 'single', 'single', 'single', 'single', 'single'});
+Specs.ROI(1) = {'Dummy'};
+
+%% timewindow
+imfreq = 15;
+timebefore = 5*imfreq; %5 sec before
+timeafter = 10*imfreq; % 10 sec after
+windowtime = timebefore+timeafter+1;
+
+%% get points of activation
+% load data
+fid = fopen([DataFolder datanamefluoactivations '.dat']);
+dF = fread(fid, inf, '*single');
+dF = reshape(dF, 512,512,[]);
+fclose(fid);
+
+%Zscore:
+zF = (dF - mean(dF, 3))./std(dF,0,3);
+%Threshold on Zscore:
+aF = zF >= 1.95;
+% Removing noise:
+for ind = 1:size(aF,3)
+    aF(:,:,ind) = bwmorph(bwmorph(aF(:,:,ind), 'close', inf),'open',inf);
+end
+%Now, we want only the beginning of activations:
+aF = aF(:,:,2:end)&~aF(:,:,1:(end-1));
+aF = cat(3, false(size(aF,1),size(aF,2)), aF);
+
+clear zF ind
+
+%% load data
+if ~matches(datanamefluoactivations, datanamefluocurves)
+    fid = fopen([DataFolder datanamefluocurves '.dat']);
+    dF = fread(fid, inf, '*single');
+    dF = reshape(dF, 512,512,[]);
+    fclose(fid);
+end
+
+fid = fopen([DataFolder datanamehbo '.dat']);
+dH = fread(fid, inf, '*single');
+dH = reshape(dH,size(dF));
+fclose(fid);
+
+fid = fopen([DataFolder datanamehbr '.dat']);
+dR = fread(fid, inf, '*single');
+dR = reshape(dR,size(dF));
+fclose(fid);
+
+clear datanamehbo datanamehbr datanamefluo fid
+
+%% Get mask for brain and movement and outliers
+seps = strfind(DataFolder, filesep);
+load([DataFolder(1:seps(end-2)) 'ROImasks_data.mat'], 'img_info');
+mask = img_info.logical_mask;
+
+load([DataFolder 'OutlierMask.mat'], 'OutlierFrames', 'OutlierPixels');
+OutlierPix = OutlierPixels.HbO + OutlierPixels.HbR + OutlierPixels.hemoCorr_fluo;
+OutlierPix(OutlierPix<3) = 0;
+OutlierPix(OutlierPix == 3) = 1;
+
+mask = mask.*logical(OutlierPix);
+mask = logical(mask);
+
+%take only brain
+aF = reshape(aF,[], size(aF,3));
+aF = aF(mask(:),:);
+dF = reshape(dF,[], size(dF,3));
+dF = dF(mask(:),:);
+dH = reshape(dH,[], size(dH,3));
+dH = dH(mask(:),:);
+dR = reshape(dR,[], size(dR,3));
+dR = dR(mask(:),:);
+
+%exclude movement and outliers
+load([DataFolder 'MovMask.mat'], 'MovMask');
+aF = aF.* MovMask;
+aF = aF.*OutlierFrames;
+
+clear img_info MovMask seps OutlierMask
+
+datatypes = {'fluo', 'hbo', 'hbr'};
+datanames = {'dF', 'dH', 'dR'};
+
+%% get average curves per pixel
+for inddata = 1:size(datatypes, 2)
+    avcurvesperpixel = NaN(size(aF,1), windowtime);
+    eval(['dat = ' datanames{inddata} ';']);
+
+    %     parfor( pixel = 1:size(aF,1), 4)
+    for pixel = 1:size(aF, 1)
+        % get activations of pixel, but exclude beginning and end (where you
+        % cant get a full plot)
+        indact = find(aF(pixel,:));
+        indact(indact<=(timebefore)) = [];
+        indact(indact>=(size(aF,2)-timeafter)) = [];
+
+        if size(indact,2)<1 %if theres no activations
+            continue
+        end
+
+        temp = NaN(size(indact,2), windowtime);
+
+        for ind2 = 1:size(indact,2)
+            activation = indact(ind2); %get curves for all activations of this pixel
+            temp(ind2,:) = dat(pixel,activation-timebefore:activation+timeafter);
+        end
+
+        avcurvesperpixel(pixel,:) = mean(temp,1,'omitnan');
+    end
+    % Curves whole brain
+    eval([datatypes{inddata} 'curves.WholeBrain = mean(avcurvesperpixel, 1, ''omitnan'');'])
+
+    % put all curves per pixel in right format/size (512*512, 216)
+    temp = NaN(512*512, windowtime);
+    temp(mask,:) = avcurvesperpixel;
+    %     temp = reshape(temp, 512, 512, []);
+    eval(['avcurvesperpixel_' datatypes{inddata} '= temp;'])
+    disp([datatypes{inddata} ' done']);
+end
+clear activation aF fluotemp hbotemp hbrtemp pixel ind2 indact dF dH dR avcurvesperpixel dat datanames inddata temp
+
+%% Whole Brain
+
+% Specs Whole Brain (curves done before)
+[tempSpecs] = GetSpecs(fluocurves, hbocurves, hbrcurves, 'WholeBrain', timebefore, imfreq);
+Specs = [Specs; tempSpecs];
+clear tempSpecs
+
+%% Specific areas (ROI)
+% Curves ROI
+seps = strfind(DataFolder, filesep);
+load([DataFolder(1:seps(end-2)) 'BigROI.mat'], 'regions', 'BigROI', 'AtlasMask');
+
+for indroi = 1:size(regions,2) %go per roi
+    eval(['mapROI = BigROI.' regions{indroi} ';'])
+    mapROI = reshape(mapROI, 512*512, []);
+
+    for inddata = 1:size(datatypes, 2) %plot per datatype
+        eval(['ROIdata = avcurvesperpixel_' datatypes{inddata} '(mapROI,:);'])
+        eval([datatypes{inddata} 'curves.' regions{indroi} ' = mean(ROIdata,1, ''omitnan'');'])
+    end
+
+    % Specs ROI
+    [tempSpecs] = GetSpecs(fluocurves, hbocurves, hbrcurves, regions{indroi}, timebefore, imfreq);
+    Specs = [Specs; tempSpecs];
+    clear tempSpecs
+end
+clear regions BigROI indroi inddata seps
+
+%% Half brain
+% Curves half brain
+AtlasMask(AtlasMask == 0) = NaN;
+
+rightmask = zeros(size(AtlasMask));
+rightmask(AtlasMask < 6) = 1;
+rightmask = bwmorph(rightmask, 'close');
+rightmask = imclose(rightmask, strel('disk', 5));
+
+leftmask = zeros(size(AtlasMask));
+leftmask(AtlasMask > 5) = 1;
+leftmask = bwmorph(leftmask, 'close');
+leftmask = imclose(leftmask, strel('disk', 5));
+
+temp = zeros(size(AtlasMask));
+temp(rightmask) = 1;
+temp(leftmask) = 2;
+AtlasMask = temp;
+
+leftmask = leftmask.*OutlierPix;
+rightmask = rightmask.*OutlierPix;
+leftmask = logical(reshape(leftmask, 512*512,1));
+rightmask = logical(reshape(rightmask, 512*512,1));
+
+for inddata = 1:size(datatypes, 2)
+    eval(['left = avcurvesperpixel_' datatypes{inddata} '(leftmask,:);'])
+    eval([datatypes{inddata} 'curves.Left = mean(left,1,''omitnan'');'])
+
+    eval(['right = avcurvesperpixel_' datatypes{inddata} '(rightmask,:);'])
+    eval([datatypes{inddata} 'curves.Right = mean(right,1,''omitnan'');'])
+end
+clear temp inddata seps avcurve_fluo avcurve_hbo avcurve_hbr
+
+% Specs half brain
+[tempSpecs] = GetSpecs(fluocurves, hbocurves, hbrcurves, 'Left', timebefore, imfreq);
+Specs = [Specs; tempSpecs];
+[tempSpecs] = GetSpecs(fluocurves, hbocurves, hbrcurves, 'Right', timebefore, imfreq);
+Specs = [Specs; tempSpecs];
+clear tempSpecs
+
+%% save
+
+clear datanamefluocurves
+
+Specs(matches(Specs.ROI, 'Dummy'),:) = [];
+save([DataFolder NVCname '.mat'], 'fluocurves', 'hbocurves', 'hbrcurves', 'Specs');
+% save([DataFolder NVCname '_OL_removed.mat'], 'fluocurves', 'hbocurves', 'hbrcurves', 'Specs');
+end
+
+
+
+function [Specs] = GetSpecs(fluo, hbo, hbr, roiname, timebefore, imfreq)
+VarNames = {'ROI', 'DelaySec', 'DelayFrames', 'ResponseStrength', 'ResponseStrengthRelative'...
+    'GCaMPDipBefore', 'GCaMPPeak', 'GCaMPDipAfter',...
+    'HbODipBefore', 'HbOPeak', 'HbODipAfter', ...
+    'HbRDipBefore', 'HbRPeak', 'HbRDipAfter'};
+VarTypes =     {'cell', 'single', 'single', 'single', 'single', ...
+    'single', 'single', 'single',...
+    'single', 'single', 'single',...
+    'single', 'single', 'single'};
+Specs = table('Size', size(VarNames), 'VariableNames', VarNames, ...
+    'VariableTypes', VarTypes);
+
+
+Specs.ROI = roiname;
+
+eval(['[maxfluo, indfluo] = findpeaks(fluo.' roiname '(timebefore:end));']) %find first peak after detected activation
+if isempty(maxfluo) %if there's only nan
+    Specs.DelaySec = NaN;
+    Specs.DelayFrames = NaN;
+    Specs.ResponseStrength = NaN;
+    return
+end
+
+% GCaMPPeak
+indfluo = timebefore + indfluo(1) - 1;
+maxfluo = maxfluo(1);
+Specs.GCaMPPeak = maxfluo;
+% GCaMPDipBefore & GCaMPDipAfter
+eval(['indDips = islocalmin(fluo.' roiname ');'])
+indDipBefore = find(indDips(1:indfluo(1)), 1, 'last');
+eval(['Specs.GCaMPDipBefore = fluo.' roiname '(indDipBefore);'])
+indDipAfter = indDipBefore + find(indDips(indDipBefore+1:end), 1, 'first');
+eval(['Specs.GCaMPDipAfter = fluo.' roiname '(indDipAfter);'])
+
+%HbOPeak
+eval(['[maxhbo, indhbo] = findpeaks(hbo.' roiname '(indfluo:end));'])
+indhbo = indfluo + indhbo(1) - 1;
+maxhbo = maxhbo(1);
+Specs.HbOPeak = maxhbo;
+% HbODipBefore & HbODipAfter
+eval(['indDips = islocalmin(hbo.' roiname ');'])
+indDipBefore = find(indDips(1:indfluo(1)), 1, 'last');
+eval(['Specs.HbODipBefore = hbo.' roiname '(indDipBefore);'])
+indDipAfter = indDipBefore + find(indDips(indDipBefore+1:end), 1, 'first');
+eval(['Specs.HbODipAfter = hbo.' roiname '(indDipAfter);'])
+
+%HbRPeak
+eval(['[maxhbr, ~] = findpeaks(hbr.' roiname '(indfluo:end));'])
+maxhbr = maxhbr(1);
+Specs.HbRPeak = maxhbr;
+% HbRDipBefore & HbRDipAfter
+eval(['indDips = islocalmin(hbr.' roiname ');'])
+indDipBefore = find(indDips(1:indfluo(1)), 1, 'last');
+eval(['Specs.HbRDipBefore = hbr.' roiname '(indDipBefore);'])
+indDipAfter = indDipBefore + find(indDips(indDipBefore+1:end), 1, 'first');
+eval(['Specs.HbRDipAfter = hbr.' roiname '(indDipAfter);'])
+
+%Delays
+Specs.DelaySec = (indhbo - indfluo)/imfreq; %in seconds
+Specs.DelayFrames = indhbo - indfluo;
+maxfluo = (maxfluo-1) *100; % in percentage
+
+% Response Strengths
+Specs.ResponseStrength = maxhbo / maxfluo;
+increasefluo = Specs.GCaMPPeak - Specs.GCaMPDipBefore;
+increasehbo = Specs.HbOPeak - Specs.HbODipBefore;
+
+
+end
+
+% function [f] = plot3curves(data_fluo, data_hbo, data_hbr)
+%
+% f = figure('InvertHardcopy','off','Color',[1 1 1]);
+% x = linspace(-5, 10, 226);
+% %Left side
+% yyaxis left
+% plot(x, data_fluo, 'Color', [0.4660 0.6740 0.1880], 'LineWidth', 2)
+% ylabel('GCaMP (\Delta F/F)')
+% ylim([0.95 1.05]);
+% % yticks([0.97 1.00 1.03 1.06 1.09])
+% ax = gca;
+% ax.YColor = 'k';
+% ax.XColor = 'k';
+% set(ax, 'FontSize', 15, 'LineWidth', 2)
+%
+% % Right side
+% yyaxis right
+% plot(x, data_hbo, 'LineWidth', 2)
+% % ylabel('Hemodynamics (\muM)', 'interpreter', 'Tex', 'Rotation', 270)
+% ylabel('Hemodynamics (\muM)', 'interpreter', 'Tex')
+% hold on
+% plot(x, data_hbr, 'Color', 'blue', 'LineStyle', '-', 'LineWidth', 2)
+% % ylim([-max(abs(ax.YLim)) max(abs(ax.YLim))]); % to keep 0 as middle
+% ylim([-3 3]); % to keep 0 as middle
+% ax.YColor = 'k';
+%
+% line([0 0], ylim, 'Color', 'k')
+% xticks(-5:10);
+% xlabel('Time (seconds)')
+% legend({'GCaMP', 'HbO', 'HbR'})
+%
+% end
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%

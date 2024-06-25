@@ -40,7 +40,19 @@ Recordings = [RecordingOverview.A1; RecordingOverview.A2; RecordingOverview.A3];
 Mice = [RecordingOverview.Mouse; RecordingOverview.Mouse; RecordingOverview.Mouse];
 SaveDirs = [RecordingOverview.SaveDirectory; RecordingOverview.SaveDirectory;RecordingOverview.SaveDirectory;];
 
+% Recordings = [RecordingOverview.A3];
+% Mice = [RecordingOverview.Mouse];
+% SaveDirs = [RecordingOverview.SaveDirectory];
+
+% Recordings = [RecordingOverview.A2; RecordingOverview.A3];
+% Mice = [RecordingOverview.Mouse; RecordingOverview.Mouse];
+% SaveDirs = [RecordingOverview.SaveDirectory; RecordingOverview.SaveDirectory];
+
 % SaveDir = '/media/mbakker/GDrive/P2/GCaMP';
+
+%% left-right
+% DataFolder = '/media/mbakker/Microstroke-II/Marleen/LR-GCAMP/Rawdat';
+% SaveFolder = '/media/mbakker/Microstroke-II/Marleen/LR-GCAMP/M99/A1-R1/CtxImg';
 
 %% Start going per recording
 for ind = 1:size(Recordings,1)
@@ -49,13 +61,12 @@ for ind = 1:size(Recordings,1)
     fs = strfind(DataFolder, '-');
     Acq = DataFolder(fs(end-1)+1:fs(end)-1);
     clear fs
-    
+
     if( ~strcmp(DataFolder(end), filesep) )
         DataFolder = [DataFolder filesep];
     end
     
     % Save to work with UmIToolbox
-    
     SaveFolder = [SaveDirs{ind} filesep Mouse filesep DataFolder(end-5:end) 'CtxImg' filesep];    
     
     if ~exist(SaveFolder, 'dir')
@@ -71,17 +82,17 @@ for ind = 1:size(Recordings,1)
     Preproc_functions = {'ImagesClassification', 'MarkMovement', 'CorrectDichroic',...
         'FlipLR_fluo_567', 'FlipLR_green', 'FlipLR_red', 'Coreg_acquisitions'};
     teller = 0;
-    
+
     for indfcndone = 1:size(Preproc_functions, 2)
         eval(['varlist = who(anaReg, ''' Preproc_functions{indfcndone} ''');'])
         if ( isempty(varlist) || ...
                 eval(['~isfield(anaReg.' Preproc_functions{indfcndone} ', ''ended'')']) )
-                
+
             teller = teller +1;
             break
         end
     end
-    
+
     if teller == 0
         disp('Preprocessing_Pipeline_CaCl_GCaMP already done. Mouse skipped.')
         continue % if all functions here are done, go to next acquisition.
@@ -127,13 +138,30 @@ for ind = 1:size(Recordings,1)
     else
         disp('Movement Marking already done');
     end
-    
+
     %% Correct For Dichroic Mirror shift
     disp('Dichroic Correction...'); 
     varlist = who(anaReg,'CorrectDichroic');
-    
+
     if( isempty(varlist) || ~isfield(anaReg.CorrectDichroic, 'ended') )...
             && ManualInput == 1
+        anaReg.CorrectDichroic = [];
+        CorrDi.started = datestr(now);
+        try
+            CorrectDichroic(SaveFolder)
+            CorrDi.ended = datestr(now);
+            disp('Dichroic Correction done');
+        catch
+            CorrDi.error = datestr(now);
+            disp(['CorrectDichroic error' DataFolder]);
+            return;
+        end
+        anaReg.CorrectDichroic = CorrDi;
+        clear CorrDi;
+    elseif datetime(getfield(anaReg.CorrectDichroic, 'ended')) < datetime(getfield(anaReg.ImagesClassification, 'ended')) ...
+            && ManualInput == 1
+        disp('Redid Imagesclassification so have to redo CorrectDichroic...')
+                
         anaReg.CorrectDichroic = [];
         CorrDi.started = datestr(now);
         try
@@ -150,24 +178,26 @@ for ind = 1:size(Recordings,1)
     else
        disp('Dichroic Correction already done');
     end
-    
+
     %% Flip data
     disp('Flip left and right...');
-    
+
     for datfile = {'green', 'red', 'fluo_567'}
         varlist = who(anaReg,['FlipLR_' char(datfile)]);
-        
+
         if( isempty(varlist) || ...
-                eval(['~isfield([anaReg.FlipLR_' char(datfile) '], "ended")']) )
+                eval(['~isfield([anaReg.FlipLR_' char(datfile) '], "ended")']) ) || ...
+                eval(['datetime(getfield(anaReg.FlipLR_' char(datfile) ', ''ended'')) < datetime(getfield(anaReg.ImagesClassification, ''ended''))'])
+
             eval(['anaReg.FlipLR_' char(datfile) '= [];']);
             eval(['flip' char(datfile) '.started = datestr(now);']);
-            
+
             try
                 fid = fopen([SaveFolder char(datfile) '.dat']);
                 dat = fread(fid, inf, '*single');
                 dat = reshape(dat, 512, 512, []);
                 dat = fliplr(dat);
-                
+
                 disp(['Overwriting ' char(datfile) '.dat file'])
                 fclose(fid);
                 fid = fopen([SaveFolder char(datfile) '.dat'], 'w');
@@ -175,26 +205,32 @@ for ind = 1:size(Recordings,1)
                 fclose(fid);
                 eval(['flip' char(datfile) '.ended = datestr(now);']);
                 eval(['anaReg.FlipLR_' char(datfile) '= flip' char(datfile) ';']);
-                
+
             catch
                 eval(['flip' char(datfile) '.error = datestr(now);']);
                 eval(['anaReg.FlipLR_' char(datfile) '= flip' char(datfile)]);
-                
+
                 disp(['Flip left and right error ' DataFolder char(datfile)]);
                 return;
             end
-            
+
             clear flip*
             disp(['Flip left and right ' char(datfile) ' done']);
-        else
+
+    else
             disp(['Flip left and right ' char(datfile) ' already done']);
         end
     end
-    
-        
+
+
     %% ROI creating + mask
+    % temp after correction of coregistration dichroic. Check if atlasmask
+    % fits on brain. 
+
+    % klad
+
     disp('Mask and ROI creation...')
-    
+
     if ManualInput == 1
         if exist([SaveDirs{ind} filesep Mouse filesep 'ImagingReferenceFrame.mat'], 'file') && ...
                 exist([SaveDirs{ind} filesep Mouse filesep 'ROImasks_data.mat'], 'file') && ...
@@ -206,13 +242,13 @@ for ind = 1:size(Recordings,1)
             fluo_im = reshape(fluo_im, 512, 512);
             disp(Mouse)
             fclose(fid);
-            
+
             fid = fopen([SaveFolder 'green.dat']);
             green_im = fread(fid, 512*512, '*single' );
             green_im = reshape(green_im, 512, 512);
             imagesc(green_im)
             fclose(fid); 
-            
+
             green_im = green_im./mean(green_im(:));
             green_im = (green_im-min(green_im(:)))./(max(green_im(:))-min(green_im(:)));
             green_im(green_im < 0) = 0;
@@ -220,7 +256,7 @@ for ind = 1:size(Recordings,1)
             green_im = adapthisteq(green_im);
             figure
             imagesc(green_im)
-            
+
             ROImanager(fluo_im)
             f = msgbox(["In ROImanager, do the following steps:"; ...
                 "-  Image – Set origin – New – drag to bregma, right mouse-click to set"; ...
@@ -235,16 +271,14 @@ for ind = 1:size(Recordings,1)
             % SeedGenerator only necessary if you do centroids, not whole
             % regions.
 %             SeedGenerator(SaveFolder) %new 15-6-23, have to test
-            ClusterRois(SaveFolder, 1) %new 11-8-23 on this position, have to test
-            % the 1 in clusterrois is for overwrite, because if you get to
-            % this point, you will have just made the ROI so you want to
-            % overwrite whatever was already there before. 
+            ClusterRois(SaveFolder, 1)
+            Correct_for_rotation_ROI(SaveFolder)
         end
     elseif ~exist([SaveDirs{ind} filesep Mouse filesep 'ImagingReferenceFrame.mat'], 'file')
         disp(['To do: ROI & Mask for ' Mouse ])
     end
-    
-    
+
+
     %% Remove fluo 475 files
     % *** BE CAREFUL WITH THIS ***
     if contains(SaveFolder, 'GDrive') && exist([SaveFolder 'fluo_475.dat']) ...  %to make sure you dont delete from other places
@@ -254,7 +288,7 @@ for ind = 1:size(Recordings,1)
             'Yes, delete', 'No, cancel', 'No, cancel');
         switch answer
             case 'Yes, delete'
-                
+
                 eval(['delete ' SaveFolder 'fluo_475.dat'])
                 eval(['delete ' SaveFolder 'fluo_475.mat'])
                 disp('Fluo 475 files deleted')
@@ -262,7 +296,7 @@ for ind = 1:size(Recordings,1)
                 disp('Fluo 475 files not deleted')
         end
     end
-    
+
     %% Coregistration A1 - A2 - A3    % Save to work with UmIToolbox
 %     SaveFolder = [SaveDirs{ind} filesep Mouse filesep DataFolder(end-5:end) 'CtxImg' filesep];    
 
@@ -276,7 +310,7 @@ for ind = 1:size(Recordings,1)
     %any fluo files. 
     disp('Coregistration A1-A2-A3...')
     varlist = who(anaReg,'Coreg_acquisitions');
-    
+
     if isequal(Acq, 'A1') 
         disp('No coregistration, Acquisition is A1')
         anaReg.Coreg_acquisitions = [];
@@ -284,44 +318,45 @@ for ind = 1:size(Recordings,1)
         Coreg.ended = datestr(now);
         anaReg.Coreg_acquisitions = Coreg;
         clear Coreg
-        
+
     elseif ManualInput == 0
         disp('Coregistration skipped')
-        
-    elseif ( isempty(varlist) || ~isfield(anaReg.Coreg_acquisitions, 'ended') )
+
+    elseif ( isempty(varlist) || ~isfield(anaReg.Coreg_acquisitions, 'ended') || ...
+            datetime(getfield(anaReg.Coreg_acquisitions, 'ended')) < datetime(getfield(anaReg.ImagesClassification, 'ended')) )
         anaReg.Coreg_acquisitions = [];
         Coreg.started = datestr(now);
-        
+
         eval(['allinfomouse = RecordingOverview(ismember(RecordingOverview.' Acq ', ''' DataFolder(1:end-1) '''),:);']);
         pathFixed = allinfomouse.A1{:}; %get folder of A1 for this mouse
         pathFixed = [SaveDirs{ind} filesep Mouse filesep pathFixed(end-4:end) filesep 'CtxImg' filesep];
-        
+
         try
             Coregistration(pathFixed, SaveFolder);
             Coreg.ended = datestr(now);
             disp('Coregistration done.')
         catch
-            
-            disp('Coregistration try 2')
-            try
-                CoregistrationManual(pathFixed, SaveFolder)
-                Coreg.ended = datestr(now);
-                disp('Coregistration done.')
-            catch
+
+            % disp('Coregistration try 2')
+            % try
+            %     CoregistrationManual(pathFixed, SaveFolder)
+            %     Coreg.ended = datestr(now);
+            %     disp('Coregistration done.')
+            % catch
                 Coreg.error = datestr(now);
                 disp(['Coregistration error ' DataFolder])
                 %             return;
-            end
+            % end
         end
         anaReg.Coreg_acquisitions = Coreg;
         clear Coreg
-        
+
     else
         disp('Coregistration already done');
-        
-    end
-        
-end
 
+    end
+    
+    
+end
 
 

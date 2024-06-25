@@ -1,133 +1,168 @@
-%P2
-% This function is used to coregister different acquisitions of the same
-% mouse with each other, so that the brain is at the same place. It needs
-% the function CoregistrationManual. 
+% datatype is 'fluo' or 'speckle'
 
-% changed minor things 7-2-2024, not tested. Added ToBeCorrected input,
-% made filesize adaptable, not hardcoded on 512.
+function Correct_for_rotation_ROI(DataFolder, datatype)
 
-% practice:
-% path_fixed =  '/media/mbakker/GDrive/P2/GCaMP/M13/A1-R2/CtxImg';
-% path_moving = '/media/mbakker/GDrive/P2/GCaMP/M13/A2-R1/CtxImg';
-
-% path_fixed is the folder of the mouse with data to base your fixation on,
-% in this case A1. path_moving are the datafolders with the files that you
-% want to coregister, in this case A2 and A3. dataname is the file you base
-% your coregistration on, in this case green or speckle. ToBeCorrected are
-% the files that you want to move. In case of GCaMP, that is green, red,
-% and fluo, in case of speckle it is speckle. Give like {'green', 'red', 'fluo_567.dat'}
-
-function Coregistration(path_fixed, path_moving, dataname, ToBeCorrected)
-
-if ~exist('dataname', 'var')
-    dataname = 'green.dat';
-elseif size(dataname,2)<4 || ~matches(dataname(end-3:end), '.dat')
-    dataname = [dataname '.dat'];
+if( ~strcmp(DataFolder(end), filesep) )
+    DataFolder = [DataFolder filesep];
 end
 
-if( ~strcmp(path_moving(end), filesep) )
-    path_moving = [path_moving filesep];
+if ~exist('datatype', 'var') || matches(datatype, 'fluo') 
+    datatype = 'fluo_567';
+    nroffolders = 2;
+    % GCaMP has an extra CtxImg folder in the acq, whereas speckle does
+    % not. Need to account for this in getting the pathROI
+elseif matches(datatype, 'speckle')
+    nroffolders = 1;
+else
+    disp('Datatype not recognized, put fluo or speckle')
+    return
 end
-if( ~strcmp(path_fixed(end), filesep) )
-    path_fixed = [path_fixed filesep];
+
+idx = strfind(DataFolder, filesep); %zoek alle plekken van fileseps in naam
+pathROI = DataFolder(1:idx(end-nroffolders));
+
+if ~exist([pathROI 'BigROI.mat'], 'file')
+    disp('No BigROI to correct.')
+    return
 end
 
-%% Step 1: Load data
-load([path_fixed dataname(1:end-4) '.mat'], 'datSize');
+%% check if already done
+infovar = who('-file', [pathROI 'BigROI.mat']);
+if sum(contains(infovar,'Rotation'))
+    disp('rotation already done, exited function')
+    return
+end
 
-fid = fopen([path_fixed dataname]);
-dat = fread(fid, datSize(1)*datSize(2), '*single');
-dat = reshape(dat, datSize(1),datSize(2));
-fclose(fid);
-datfixed = dat;
+%% get data and tform
+load([pathROI 'ImagingReferenceFrame.mat'], 'reference_frame')
 
-fid = fopen([path_moving dataname]);
-dat = fread(fid, datSize(1)*datSize(2), '*single');
-dat = reshape(dat, datSize(1),datSize(2));
-fclose(fid);
-datmov = dat;
-clear dat
+dims = load([DataFolder datatype '.mat'], 'datSize');
+dims = dims.datSize;
 
-%% Step 3: Prep, make differences more clear
-datfixed = datfixed./mean(datfixed(:));
-datfixed = (datfixed-min(datfixed(:)))./(max(datfixed(:))-min(datfixed(:)));
-datfixed(datfixed < 0) = 0;
-datfixed(datfixed > 1) = 1;
-datfixed = adapthisteq(datfixed);
+if matches(datatype, 'fluo_567')
+    fid = fopen([DataFolder datatype '.dat']);
+    fl = fread(fid, dims(1)*dims(2), '*single');
+    fl = reshape(fl, dims(1), dims(2));
+    fclose(fid);
+elseif matches(datatype, 'speckle')
+    load([DataFolder 'meanBFI.mat'], 'meanBFI')
+    % P = prctile(meanBFI(:), [0.1 99.9]);
+    P = prctile(meanBFI(:),[0.1 99]);
+    BrainIm = (meanBFI-P(2))./(P(1)-P(2));
+    BrainIm(BrainIm(:)<0) = 0;
+    BrainIm(BrainIm(:)>1) = 1;
+    load([pathROI 'Masks.mat'], 'VesselMask');
+    BrainIm = BrainIm .* VesselMask;
+    fl = BrainIm;
 
-datmov = datmov./mean(datmov(:));
-datmov = (datmov-min(datmov(:)))./(max(datmov(:))-min(datmov(:)));
-datmov(datmov < 0) = 0;
-datmov(datmov > 1) = 1;
-datmov = adapthisteq(datmov);
+    % temp:
+    f1 = figure;
+    imagesc(fl, [0 1])
+    f2 = figure;
+    imagesc(reference_frame, [0 1]) % if not the same, do different P
+    f1.Position = [20 20 700 600];
+    f2.Position = [800 20 700 600];
 
-%% Step 4: CoReg
+    diffp = questdlg('Are the two images (slightly) different in values?');
+    close(f1, f2)
+    if matches(diffp, 'Yes')
+        load([DataFolder 'meanBFI.mat'], 'meanBFI')
+        P = prctile(meanBFI(:), [0.1 99.9]);
+        BrainIm = (meanBFI-P(2))./(P(1)-P(2));
+        BrainIm(BrainIm(:)<0) = 0;
+        BrainIm(BrainIm(:)>1) = 1;
+        load([pathROI 'Masks.mat'], 'VesselMask');
+        BrainIm = BrainIm .* VesselMask;
+        fl = BrainIm;
+
+        f1 = figure;
+        imagesc(fl, [0 1])
+        f2 = figure;
+        imagesc(reference_frame, [0 1]) % if not the same, do different P
+        f1.Position = [20 20 700 600];
+        f2.Position = [800 20 700 600];
+
+        diffpcheck = questdlg('Correct like this?');
+        if matches(diffpcheck, 'No')
+            disp('Something wrong with Reference Image')
+            disp(DataFolder)
+            return
+        end
+        close(f1, f2)
+    end
+    clear BrainIm meanBFI f1 f2 
+end
+
 [optimizer, metric] = imregconfig('monomodal');
 optimizer.MaximumIterations = 1e6;
 optimizer.MinimumStepLength = 1e-5;
 optimizer.MaximumStepLength = 1e-2;
 optimizer.GradientMagnitudeTolerance = 1e-3;
-tform = imregtform(datmov, datfixed, 'affine', optimizer, metric,...
+
+tform = imregtform(reference_frame, fl, 'affine', optimizer, metric,...
     'DisplayOptimization', false, 'PyramidLevels', 3);
 
-%% Step 5:Confirmation
+%% validate
 f1 = figure;
 f1.Name = 'old';
-imshowpair(datfixed, datmov);
-dat_corr = imwarp(datmov,tform,'OutputView',imref2d(size(datfixed)));
+f1.Position = [20 20 700 600];
+imshowpair(reference_frame, fl);
+dat_corr = imwarp(reference_frame,tform,'OutputView',imref2d(size(fl)));
 f2 = figure;
 f2.Name = 'new';
-imshowpair(datfixed, dat_corr);
-% saveas(gcf,[path_moving 'CoregistrationComp.png']);
-% 
-pause 
-answer = questdlg('Does it make sense?', ...
-	'Coregistration', ...
-	'Yes','No','Yes');
-% Handle response
-switch answer
-    case 'Yes'
-        disp('≧◠‿●‿◠≦    ᕙ(^▿^-ᕙ)');
-        close(f1, f2)
-    case 'No'
-        disp('xxx')
-%         return
-        close(f1, f2)
-        tform = AlignFrame_Manual(datfixed, datmov);
+f2.Position = [800 20 700 600];
+imshowpair(fl, dat_corr);
 
-        % error('Coregistration not good enough to apply')
+answer = questdlg('Is coregistration correct?');
+
+close(f1, f2)
+
+if ~matches(answer, 'Yes')
+    % disp('DO THIS ONE BY HAND')
+    tform = AlignFrame_Manual(fl, reference_frame);
 end
-disp('applying coregistration...')
 
-%% Step 5 B: Save/load
-save([path_moving 'tform_acq.mat'],'tform');
+clear answer dat_corr f1 f2 fid idx metric nroffolders optimizer
 
-% %% Step 6: Apply to all images
-% % if( bApply )
-% if ~exist('ToBeCorrected', 'var')
-%     ToBeCorrected = {'green.dat', 'red.dat', 'fluo_567.dat'};
+%% Load BigROI and translate
+load([pathROI 'BigROI.mat'], 'AtlasMask', 'BigROI', 'regions');
+
+% AtlasMask
+AtlasMask = imwarp(AtlasMask,tform,'OutputView',imref2d(size(fl)));
+roundatlas = round(AtlasMask); % to get rid of numbers with decimals
+AtlasMask(AtlasMask~=roundatlas) = 0;
+
+%BigROI
+BigROI_old = BigROI;
+for indROI = 1:size(regions,2)
+    eval(['MaskROI = BigROI.' regions{indROI} ';'])
+    MaskROI = imwarp(MaskROI,tform,'OutputView',imref2d(size(fl)));
+    roundROI = round(MaskROI);
+    MaskROI(MaskROI~=roundROI) = 0;
+
+    eval(['BigROI.' regions{indROI} ' = MaskROI;'])
+end
+
+% regions stay the same. Give mark that you rotated
+Rotation = 1;
+
+%% Save
+save([pathROI 'BigROI.mat'], 'BigROI', 'AtlasMask', 'regions', 'Rotation');
+
+% %temp
+% if matches(datatype, 'speckle') && matches(diffp, 'Yes')
+%     load([DataFolder 'meanBFI.mat'], 'meanBFI')
+%     P = prctile(meanBFI(:),[0.1 99.9]);
+%     BrainIm = (meanBFI-P(2))./(P(1)-P(2));
+%     BrainIm(BrainIm(:)<0) = 0;
+%     BrainIm(BrainIm(:)>1) = 1;
+%     load([pathROI 'Masks.mat'], 'VesselMask');
+%     BrainIm = BrainIm .* VesselMask;
+% 
+%     reference_frame = imwarp(BrainIm,tform,'OutputView',imref2d(size(fl)));
+%     save([pathROI 'ImagingReferenceFrame.mat'], 'reference_frame', '-append')
 % end
-% 
-% for index = 1:size(ToBeCorrected,2)
-%     dataname = ToBeCorrected{index};
-%     fid = fopen([path_moving dataname]);
-%     dat = fread(fid, inf, '*single');
-%     dat = reshape(dat, datSize(1),datSize(2),[]);
-%     fclose(fid);
-% 
-%     for ind = 1:size(dat,3)
-%         dat(:,:,ind) = imwarp(squeeze(dat(:,:,ind)),tform,'OutputView',imref2d(size(dat(:,:,1))),'interp','nearest');
-%     end
-% 
-%     fid = fopen([path_moving dataname], 'w');
-%     fwrite(fid,dat,'*single');
-% 	fclose(fid);   
-% end
-
-
-end %of function
-
-
+end
 
 function TOut = AlignFrame_Manual(ImFixed, ImVar)
 h = figure('Position', [100 100 750 550], 'CloseRequestFcn', @CloseFig);

@@ -3,15 +3,22 @@
 % grouping that you want to use) and the y value that you want plotted.
 % 
 
-function [f, t] = MakeBoxplot(Grouping, groups, overviewtable, ylimvalues, x, y)
+function [f, t] = MakeBoxplot(Grouping, groups, overviewtable, ylimvalues, x, y, NewFig)
 
 if ~exist('x','var')
     x = 'ROI';
 end 
 
+if ~exist('NewFig', 'var')
+    NewFig = 1;
+end
+
+Grouping = char(Grouping);
+
 %name the columns in your table that you want to use x and y
 temp = find(matches(overviewtable.Properties.VariableNames, x));
 overviewtable.Properties.VariableNames{temp} = 'x';
+overviewtable.x = categorical(overviewtable.x);
 
 if exist('y', 'var')
     temp = find(matches(overviewtable.Properties.VariableNames, y));
@@ -21,7 +28,9 @@ end
 overviewtable.idx = grp2idx(overviewtable.x); %this gives the groups based on alphabet, so sort the ROI labels as well:
 labels = cellstr(unique(overviewtable.x))';
 
-f = figure('InvertHardcopy','off','Color',[1 1 1]);
+if NewFig == 1
+    f = figure('InvertHardcopy','off','Color',[1 1 1]);
+end 
 
 if matches(Grouping, 'Sex') % if you're grouping by sex
 
@@ -142,5 +151,6 @@ else
     end
     subtitle(subtitleN(1:end-4), 'FontSize', 15)
     t = b; %to give return
+    f = 1;
 end
 end

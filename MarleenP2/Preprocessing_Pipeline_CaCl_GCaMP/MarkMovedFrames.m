@@ -91,17 +91,19 @@ temp = Treadmill < cutoff;
 % expand the movement frames by 10. Not the most elegant way but it works.
 %it now marks things with no movement as 1 and things with mov as 0
 MovMask = ones(size(temp)); % if you want 0 for no mov en 1 for mov, change this to zeros(size(temp)) and ...
+% buffer = round(Info.Freq/3)*2;
+buffer = Info.Freq; % 1 sec buffer
 for ind = 1:size(temp,2)
     if temp(ind) == 0
-        if ind-10 <= 0 
+        if ind-buffer <= 0 
             ind1 = 1;
-            ind2 = ind+10;
-        elseif ind+10 > size(temp,2)
-            ind1 = ind-10;
+            ind2 = ind+buffer;
+        elseif ind+buffer > size(temp,2)
+            ind1 = ind-buffer;
             ind2 = size(temp,2);
         else
-            ind1 = ind-10;
-            ind2 = ind+10;
+            ind1 = ind-buffer;
+            ind2 = ind+buffer;
         end
         MovMask(ind1:ind2) = 0; % cont. ... this part to MovMask(ind1:ind2) = 1;
     end

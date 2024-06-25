@@ -45,6 +45,8 @@ Recordings = [RecordingOverview.A1; RecordingOverview.A2; RecordingOverview.A3];
 Mice = [RecordingOverview.Mouse; RecordingOverview.Mouse; RecordingOverview.Mouse];
 SaveDirs = [RecordingOverview.SaveDirectory; RecordingOverview.SaveDirectory;RecordingOverview.SaveDirectory;];
 
+% Sideways_Acq = [{'M7', 'A1'}; {'M99', 'A3'}];
+
 %% Start going per recording
 for ind = 1:size(Recordings,1)
     Mouse = Mice{ind};
@@ -62,8 +64,8 @@ for ind = 1:size(Recordings,1)
     end
     
     % Save to work with UmIToolbox
-%     SaveFolder = [SaveDirs{ind} filesep Mouse filesep DataFolder(end-5:end) 'CtxImg' filesep];    
-    SaveFolder = [SaveDirs{ind} filesep Mouse filesep DataFolder(end-6:end)];    
+    SaveFolder = [SaveDirs{ind} filesep Mouse filesep DataFolder(end-5:end) 'CtxImg' filesep];    
+    % SaveFolder = [SaveDirs{ind} filesep Mouse filesep DataFolder(end-6:end)];    
     
     if ~exist(SaveFolder, 'dir')
         mkdir(SaveFolder);
@@ -75,25 +77,26 @@ for ind = 1:size(Recordings,1)
     disp(DataFolder(end-9:end-1))
     
     %% check if this pipeline is already done (saves printing space)
-    Preproc_functions = {'ImagesClassification', 'MarkMovement', 'FlipLR'};
+    Preproc_functions = {'ImagesClassification', 'MarkMovement', 'FlipLR', 'BFI',...
+    'ROI', 'Coreg_acquisitions'};
     teller = 0;
-    
+
     for indfcndone = 1:size(Preproc_functions, 2)
         eval(['varlist = who(anaReg, ''' Preproc_functions{indfcndone} ''');'])
         if ( isempty(varlist) || ...
                 eval(['~isfield(anaReg.' Preproc_functions{indfcndone} ', ''ended'')']) )
-                
+
             teller = teller +1;
             break
         end
     end
-    
+
     if teller == 0
-        disp('Preprocessing_Pipeline_CaCl_GCaMP already done. Mouse skipped.')
+        disp('Preprocessing_Pipeline_speckle already done. Mouse skipped.')
         continue % if all functions here are done, go to next acquisition.
     end
     
-        %% ImagesClassification
+    %% ImagesClassification
     disp('ImagesClassification... ');
     varlist = who(anaReg,'ImagesClassification');
     if( isempty(varlist) || ~isfield(anaReg.ImagesClassification, 'ended') ) %|| is "or" maar kijkt eerst of de eerste klopt voordat het naar de tweede kijkt
@@ -103,6 +106,12 @@ for ind = 1:size(Recordings,1)
             ImagesClassification(DataFolder, SaveFolder, 1, 1, 0);
             ImgClass.ended = datestr(now);
             disp('ImageClassification Done')
+
+            snapshot = dir([DataFolder 'Snapshot*']);
+            snapshot = [DataFolder snapshot.name];
+            snapshotcopy = [SaveFolder 'Snapshot.png'];
+            copyfile(snapshot, snapshotcopy)
+            clear snapshot snapshotcopy
         catch
             ImgClass.error = datestr(now);
             disp(['ImagescClassification error ' DataFolder])
@@ -170,39 +179,129 @@ for ind = 1:size(Recordings,1)
     end
     
     
+    %% Calculate BFI
+    disp('Calculate BFI...');
+    varlist = who(anaReg,'BFI');
+    if( isempty(varlist) || ~isfield([anaReg.BFI], 'ended') )
+        anaReg.BFI = [];
+        bficalc.started = datestr(now);
+        
+        try
+            CalculateBFI(SaveFolder)
+            bficalc.ended = datestr(now);
+            anaReg.BFI = bficalc;
+            
+        catch
+            bficalc.error = datestr(now);
+            anaReg.BFI = bficalc;
+            
+            disp(['BFI calculation error ' DataFolder]);
+            return;
+        end
+        clear bfi*
+        disp('BFI calculation done');
+    else
+        disp('BFI calculation already done');
+        
+    end
+
+    %% Correct Sideways
+    % S1 = find(matches(Sideways_Acq(:,1), Mouse));
+    % if ~isempty(S1) && matches(Sideways_Acq(S1,2), Acq)
+    %         fid = fopen([SaveFolder 'BFI.dat']);
+    %         dat = fread(fid, inf, '*single');
+    %         dat = reshape(dat, 1024, 1024, []);
+    %         dat = fliplr(dat);
+    % 
+    %         fclose(fid);
+    % end
+    % clear S1
+
+    %% ROI creating + mask
+    disp('Mask and ROI creation...')
+    varlist = who(anaReg, 'ROI');
+
+    if( isempty(varlist) || ~isfield([anaReg.ROI], 'ended') )
+        anaReg.ROI = [];
+        roi.started = datestr(now);
+
+        if ManualInput == 1
+            % temp
+            % if exist([SaveDirs{ind} filesep Mouse filesep 'ImagingReferenceFrame.mat'], 'file') && ...
+            %         exist([SaveDirs{ind} filesep Mouse filesep 'ROImasks_data.mat'], 'file') && ...
+            %         exist([SaveDirs{ind} filesep Mouse filesep 'BigROI.mat'], 'file')
+            %     roi.ended = datestr(now);
+            %     anaReg.ROI = roi;
+            %     disp('Mask and ROI already created')
+            % else
+            Masks_and_ROI(SaveFolder, 0, ManualInput) %overwrite 0
+            roi.ended = datestr(now);
+            anaReg.ROI = roi;
+            % end
+            % elseif ~exist([SaveDirs{ind} filesep Mouse filesep 'ImagingReferenceFrame.mat'], 'file')
+        else
+            disp(['To do: ROI & Mask for ' Mouse ])
+            anaReg.ROI = roi;
+        end
+    else
+        disp('ROI and Mask already created')
+    end
+    clear roi
+
+    %% Coregister recordings
+    disp('Coregistration A1-A2-A3...')
+    varlist = who(anaReg,'Coreg_acquisitions');
     
+    if ( isempty(varlist) || ~isfield(anaReg.Coreg_acquisitions, 'ended') )
+        if isequal(Acq, 'A1') 
+            disp('No coregistration, Acquisition is A1')
+            anaReg.Coreg_acquisitions = [];
+            Coreg.started = datestr(now);
+            Coreg.ended = datestr(now);
+        
+        elseif ManualInput == 0
+            disp('Coregistration skipped')
+            Coreg.started = datestr(now);
+
+        else
+            anaReg.Coreg_acquisitions = [];
+            Coreg.started = datestr(now);
+        
+            eval(['allinfomouse = RecordingOverview(ismember(RecordingOverview.' Acq ', ''' DataFolder(1:end-1) '''),:);']);
+            pathFixed = allinfomouse.A1{:}; %get folder of A1 for this mouse
+            pathFixed = [SaveDirs{ind} filesep Mouse filesep pathFixed(end-5:end) filesep];
+
+            try
+                Coregistration(pathFixed, SaveFolder);
+                Coreg.ended = datestr(now);
+                disp('Coregistration done.')
+            catch
+
+                disp('Coregistration try 2')
+                try
+                    CoregistrationManual(pathFixed, SaveFolder)
+                    Coreg.ended = datestr(now);
+                    disp('Coregistration done.')
+                catch
+                    Coreg.error = datestr(now);
+                    disp(['Coregistration error ' DataFolder])
+                end
+            end
+        end
+
+        anaReg.Coreg_acquisitions = Coreg;
+        clear Coreg
+        
+    else
+        disp('Coregistration already done');
+    end
     
+
+
 end
 
 
 
-
-fid = fopen('speckle.dat');
-dat = fread(fid, inf, '*single');
-dat = reshape(dat, 1024, 1024, []);
-fclose(fid)
-
-sdat = movstd(dat, 10, 0, 3);
-mdat = movmean(dat, 10,3);
-K = sdat./mdat;
-clear sdat mdat
-BFI = 1./(K.^2);
-clear K
-
-for ind = 1:size(BFI,3)
-    BFI(:,:,ind) = medfilt2(BFI(:,:,ind), [5 5]);
-end
-
-medianBFI = zeros(1,size(BFI,3));
-for ind = 1:size(BFI,3)
-    medianBFI(ind) = median(BFI(500:850,200:750,ind), 'all');
-end
-
-for ind = 4000:4100
-    imagesc(BFI(:,:,ind),[1 2000])
-    title(num2str(ind))
-    pause(0.05)
-end
 
 
 

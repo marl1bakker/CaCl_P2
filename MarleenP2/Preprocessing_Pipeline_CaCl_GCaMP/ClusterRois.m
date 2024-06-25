@@ -1,9 +1,15 @@
 % To make PooledROI.mat, see below function
 
-function ClusterRois(DataFolder, Overwrite)
+function ClusterRois(DataFolder, Overwrite, nroffolders)
 
 if ~exist('Overwrite', 'var')
     Overwrite = 0;
+end
+
+if ~exist('nroffolders', 'var')
+    nroffolders = 2;
+    % GCaMP has an extra CtxImg folder in the acq, whereas speckle does
+    % not. Need to account for this in getting the pathROI
 end
 
 if( ~strcmp(DataFolder(end), filesep) )
@@ -11,7 +17,7 @@ if( ~strcmp(DataFolder(end), filesep) )
 end
 
 idx = strfind(DataFolder, filesep); %zoek alle plekken van fileseps in naam
-pathROI = DataFolder(1:idx(end-2));
+pathROI = DataFolder(1:idx(end-nroffolders));
 
 if exist([pathROI 'BigROI.mat'], 'file') && Overwrite == 0
     return

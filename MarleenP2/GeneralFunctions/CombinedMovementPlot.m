@@ -11,7 +11,7 @@ if ~exist('Overwrite', 'var')
     Overwrite = 0;
 end
 
-%% Make 
+%% Make
 f = figure('InvertHardcopy','off','Color',[1 1 1]);
 
 if matches(imagingtype, 'Both')
@@ -24,95 +24,101 @@ end
 for ind = 1:size(imagingtype,2)
 
     % get recordingoverview
-if matches(imagingtype(ind), 'GCaMP')
-    SaveDir = '/media/mbakker/GDrive/P2/GCaMP';
-    load('/home/mbakker/P2_scripts/MarleenP2/RecordingOverview.mat', 'RecordingOverview');
-%     SaveDir = 'C:\Users\marle\OneDrive\Documenten\MATLAB\P2\MarleenP2\bla';
-%     load('C:\Users\marle\OneDrive\Documenten\MATLAB\P2\MarleenP2\RecordingOverview.mat', 'RecordingOverview');
+    if matches(imagingtype(ind), 'GCaMP')
+        SaveDir = '/media/mbakker/GDrive/P2/GCaMP';
+        load('/home/mbakker/P2_scripts/MarleenP2/RecordingOverview.mat', 'RecordingOverview');
 
-elseif matches(imagingtype(ind), 'Speckle')
-    SaveDir = '/media/mbakker/GDrive/P2/Speckle';
-    load('/home/mbakker/P2_scripts/MarleenP2/RecordingOverview_Speckle.mat', 'RecordingOverview');
-%     SaveDir = 'C:\Users\marle\OneDrive\Documenten\MATLAB\P2\MarleenP2\bla';
-%     load('C:\Users\marle\OneDrive\Documenten\MATLAB\P2\MarleenP2\RecordingOverview_Speckle.mat', 'RecordingOverview');
-else
-    disp('Imagingtype not recognized')
-    return
-end
+    elseif matches(imagingtype(ind), 'Speckle')
+        SaveDir = '/media/mbakker/GDrive/P2/Speckle';
+        load('/home/mbakker/P2_scripts/MarleenP2/RecordingOverview_Speckle.mat', 'RecordingOverview');
 
-%% Choose grouping
-if ~exist('Grouping', 'var')
-    Possibilities = {'Group', 'Sex'};
-    [indx, ~] = listdlg('ListString', Possibilities);
-    Grouping = Possibilities(indx);
-end
-
-if size(Grouping, 2)>1 || matches(Grouping, 'Combi')
-    Grouping = {'Combi'};
-end
-
-[groups, ~] = GroupVariables(RecordingOverview, Grouping);
-Grouping = char(Grouping);
-
-disp(['Combined movement plotting ' Grouping]);
-
-%% Load .mat files of fluctuations
-% Start going per group, per mouse
-[overviewtable] = MakeTable(imagingtype{ind}, RecordingOverview, SaveDir, Overwrite);
-if matches(imagingtype(ind), 'GCaMP')
-    nrofframes = 9000; %hardcoded
-elseif matches(imagingtype(ind), 'Speckle')
-    nrofframes = 6000; %hardcoded
-end
-
-%% Plot boxplot    
-nexttile
-[t] = MakeBoxplotMovement(Grouping, groups, overviewtable, [0 nrofframes/3], 'Acquisition', 'Movement');
-
-temp = gca;
-sub = {temp.Subtitle.String, 'Outliers:'};
-if any(overviewtable.Movement > (nrofframes/3))
-    disp('*****')
-    disp('MORE THAN 1/3 MOVEMENT!!')
-    outliers = overviewtable(overviewtable.Movement>(nrofframes/3),:);
-    % disp(outliers)
-
-    for index = 1:size(outliers,1)
-        sub = [sub, {[outliers.Mouse{index} ' ' char(outliers.Acquisition(index)) ' ' ...
-            char(outliers.Combi(index)) ', nr of frames moved: ' ...
-            num2str(outliers.Movement(index))]}];
+    else
+        disp('Imagingtype not recognized')
+        return
     end
-else
-    sub = [sub, {'No outliers'}];
+
+    %% Choose grouping
+    if ~exist('Grouping', 'var')
+        Possibilities = {'Group', 'Sex'};
+        [indx, ~] = listdlg('ListString', Possibilities);
+        Grouping = Possibilities(indx);
+    end
+
+    if ischar(Grouping)
+        Grouping = {Grouping};
+    elseif size(Grouping, 2)>1 || matches(Grouping, 'Combi')
+        Grouping = {'Combi'};
+    end
+
+    [groups, ~] = GroupVariables(RecordingOverview, Grouping);
+    Grouping = char(Grouping);
+
+    disp(['Combined movement plotting ' Grouping]);
+
+    %% Load .mat files of fluctuations
+    % Start going per group, per mouse
+    [overviewtable] = MakeTable(imagingtype{ind}, RecordingOverview, SaveDir, Overwrite);
+    if matches(imagingtype(ind), 'GCaMP')
+        nrofframes = 9000; %hardcoded
+    elseif matches(imagingtype(ind), 'Speckle')
+        nrofframes = 6000; %hardcoded
+    end
+
+    %% Plot boxplot
+    nexttile
+    [t] = MakeBoxplotMovement(Grouping, groups, overviewtable, [0 nrofframes/3], 'Acquisition', 'Movement');
+
+    temp = gca;
+    sub = {temp.Subtitle.String, 'Outliers:'};
+    if any(overviewtable.Movement > (nrofframes/3))
+        disp('*****')
+        disp('MORE THAN 1/3 MOVEMENT!!')
+        outliers = overviewtable(overviewtable.Movement>(nrofframes/3),:);
+        % disp(outliers)
+
+        for index = 1:size(outliers,1)
+            sub = [sub, {[outliers.Mouse{index} ' ' char(outliers.Acquisition(index)) ' ' ...
+                char(outliers.Combi(index)) ', nr of frames moved: ' ...
+                num2str(outliers.Movement(index))]}];
+        end
+    else
+        sub = [sub, {'No outliers'}];
+    end
+    subtitle(sub)
+
+    if matches(Grouping, 'Sex')
+        xlabel(t, 'Acquisition', 'interpreter', 'none')
+        ylabel(t, ['Frames moved (' num2str(nrofframes) ' total)'], 'interpreter', 'none');
+        title(t, ['Movement ' imagingtype{ind}], 'interpreter', 'none')
+    else
+        xlabel('Acquisition', 'interpreter', 'none')
+        ylabel(['Frames moved (' num2str(nrofframes) ' total)'], 'interpreter', 'none');
+        title(['Movement ' imagingtype{ind}], 'interpreter', 'none')
+    end
+
+    %% statistics
+    % eval(['statsresults.' imagingtype{ind} '= MovementStats(overviewtable);']);
+    statsresults.(imagingtype{ind}) = MovementStats(overviewtable);
 end
-subtitle(sub)
 
-if matches(Grouping, 'Sex')
-    xlabel(t, 'Acquisition', 'interpreter', 'none','FontSize',20,'FontWeight','bold')
-    ylabel(t, ['Nr of frames moved (out of ' num2str(nrofframes) ')'], 'interpreter', 'none','FontSize',20,'FontWeight','bold');
-    title(t, ['Movement ' imagingtype{ind}], 'interpreter', 'none','FontSize',20,'FontWeight','bold')
-else
-    xlabel('Acquisition', 'interpreter', 'none','FontSize',20,'FontWeight','bold')
-    ylabel(['Nr of frames moved (out of ' num2str(nrofframes) ')'], 'interpreter', 'none','FontSize',20,'FontWeight','bold');
-    title(['Movement ' imagingtype{ind}], 'interpreter', 'none','FontSize',20,'FontWeight','bold')
+f.Position = [10 50 1200 800];
+if matches(Grouping, 'Combi')
+    leg = legend({'CaCl Female', 'CaCl Male', 'Sham Female', 'Sham Male', ''}, 'NumColumns', 4);
+elseif matches(Grouping, 'Group')
+    leg = legend({'CaCl', 'Sham'}, 'NumColumns', 2);
+elseif matches(Grouping, 'Sex') 
+    leg = legend({'Female', 'Male'}, 'NumColumns', 2);
 end
 
-%% statistics
-eval(['statsresults.' imagingtype{ind} '= MovementStats(overviewtable);']);
-
-end
-
-f.Position = [10 50 1200 800]; 
-leg = legend({'CaCl Female', 'CaCl Male', 'Sham Female', 'Sham Male', ''}, 'NumColumns', 4);
 leg.Layout.Tile = 'south';
 
 if sum(matches(imagingtype, {'GCaMP', 'Speckle'})) == 2
     imagingtype = {'Both'};
 end
 
-saveas(gcf, [SaveDir filesep 'Movement' filesep 'boxplot_' Grouping '_' imagingtype{1} '.tiff'], 'tiff');
-saveas(gcf, [SaveDir filesep 'Movement' filesep 'boxplot_' Grouping '_' imagingtype{1} '.eps'], 'epsc');
-
+% saveas(gcf, [SaveDir filesep 'Movement' filesep 'boxplot_' Grouping '_' imagingtype{1} '.tiff'], 'tiff');
+% saveas(gcf, [SaveDir filesep 'Movement' filesep 'boxplot_' Grouping '_' imagingtype{1} '.eps'], 'epsc');
+saveas(gcf, [SaveDir filesep 'Movement' filesep 'boxplot_' Grouping '_' imagingtype{1} '.svg'], 'svg');
 close(f)
 
 end
@@ -157,44 +163,44 @@ end
 
 for indacq = 1:size(Acquisitions, 2)
     Acquisition = Acquisitions{indacq};
-    
+
     for indgroup = 1:size(groups,1) % Go per group
         group = groups{indgroup};
         %         disp(group);
         eval(['idx = RecordingOverview.Combi == ''' group ''';'])
         Mousegroup = RecordingOverview(idx,:);
-        
+
         for indmouse = 1:size(Mousegroup, 1) %go per mouse
             Mouse = Mousegroup.Mouse{indmouse};
             temp = matches(overviewtable.Mouse, Mouse);
-            
+
             if sum(temp) && sum(overviewtable(temp,:).Acquisition == Acquisition)
                 %                 disp(['Mouse ' Mouse ' ' Acquisition ' already done - skipped'])
                 continue
             elseif matches(Mousegroup.SaveDirectory{indmouse}, 'empty')
                 continue
             end
-            
+
             eval(['DataFolder = [Mousegroup.' Acquisition '{indmouse} filesep];']);
             indices = strfind(DataFolder, '-');
             SaveFolder = [Mousegroup.SaveDirectory{indmouse} filesep Mouse filesep DataFolder(indices(end-1)+1:end) 'CtxImg' filesep];
             if ~exist(SaveFolder, 'dir') %this is because speckle doesnt have an CtxImg folder, while gcamp does
                 SaveFolder = SaveFolder(1:end-7);
             end
-            
+
             if exist([SaveFolder 'MovMask.mat'], 'file')
                 load([SaveFolder 'MovMask.mat'], 'MovMask');
             else
                 disp([SaveFolder ' is missing MovMask. Run Preprocessing pipeline first.'])
                 continue
             end
-            
+
             if size(MovMask, 2) >= nrofframes
                 MovMask = MovMask(:, 1:nrofframes);
             else
                 MovMask(:,end+1:nrofframes) = missing;
             end
-            
+
             %build table single mouse
             tablemouse = table;
             tablemouse.Mouse = cellstr(Mousegroup.Mouse{indmouse});
@@ -206,7 +212,7 @@ for indacq = 1:size(Acquisitions, 2)
 
             %add table to general table
             overviewtable = [overviewtable; tablemouse];
-            
+
             clear tablemouse Movement MovMask DataFolder SaveFolder idx indices
         end % of mice
     end % of group
@@ -291,13 +297,18 @@ if matches(Grouping, 'Sex') % if you're grouping by sex
         clear indroi indgroup currentgroup currentROI currentindex xaxisplacement
 
         hs = scatter(Cond.idx, Cond.y, 70, 'filled', 'jitter','on','JitterAmount',0.02);
-
+        
         % MAKE PRETTY
         ylim(ylimvalues);
         set(axes,'FontSize',20,'FontWeight','bold','LineWidth',2);
         legend('Female','Male','', 'Location', 'northeast', 'NumColumns', 2)
-        hs.MarkerFaceColor = [0 0 0];
-        hs.MarkerFaceAlpha = 0.3;
+        % hs.MarkerFaceColor = [0 0 0];        
+        if matches(conditions{indcondition}, 'CaCl')
+            hs.MarkerFaceColor = [0.6350 0.0780 0.1840];
+        elseif matches(conditions{indcondition}, 'Sham')
+            hs.MarkerFaceColor = [0 0.4470 0.7410];
+        end
+        hs.MarkerFaceAlpha = 0.5;
         hs.Marker;
         xticks(1:length(labels));
         xticklabels(labels)
@@ -317,7 +328,8 @@ else
 
     % BOXPLOT
     %dont display outliers because we will do scatter that will show them
-    eval(['b = boxchart(overviewtable.idx, overviewtable.y, ''GroupByColor'', overviewtable.' Grouping ', ''LineWidth'', 2, ''MarkerStyle'', ''none'');'])
+    % eval(['b = boxchart(overviewtable.idx, overviewtable.y, ''GroupByColor'', overviewtable.' Grouping ', ''LineWidth'', 2, ''MarkerStyle'', ''none'');'])
+    b = boxchart(overviewtable.idx, overviewtable.y, 'GroupByColor', overviewtable.(Grouping), 'LineWidth', 2, 'MarkerStyle', 'none');
     hold on
 
     % SCATTER
@@ -328,7 +340,8 @@ else
         currentROI = overviewtable.x == labels{indroi}; %is called currentroi because it's usually grouped by ROI, but can be something else
 
         for indgroup = 1:size(groups,1)
-            eval(['currentgroup = overviewtable.' Grouping ' == groups{indgroup};']);
+            % eval(['currentgroup = overviewtable.' Grouping ' == groups{indgroup};']);
+            currentgroup = overviewtable.(Grouping) == groups{indgroup};
             currentindex = currentgroup.*currentROI;
             overviewtable.idx(currentindex == 1) = xaxisplacement + xaxisstep*indgroup;
         end
@@ -337,18 +350,31 @@ else
     end
     clear indroi indgroup currentgroup currentROI currentindex ind indmouse tablemouse xaxisplacement group idx Mousegroup toplot
 
-    hs = scatter(overviewtable.idx, overviewtable.y, 70, 'filled', 'jitter','on','JitterAmount',0.02);
+    % hs = scatter(overviewtable.idx, overviewtable.y, 70, 'filled', 'jitter','on','JitterAmount',0.02);
 
     % MAKE PRETTY
-    hs.MarkerFaceColor = [0 0 0];
-    hs.MarkerFaceAlpha = 0.3;
+    cacl = overviewtable(overviewtable.(Grouping)=='CaCl',:);
+    hs = scatter(cacl.idx, cacl.y, 70, 'filled', 'jitter','on','JitterAmount',0.02);
+    hs.MarkerFaceColor = [0.6350 0.0780 0.1840];
+    hs.MarkerFaceAlpha = 0.5;
+    clear hs cacl
+
+    sham = overviewtable(overviewtable.(Grouping)=='Sham',:);
+    hs = scatter(sham.idx, sham.y, 70, 'filled', 'jitter','on','JitterAmount',0.02);
+    hs.MarkerFaceColor = [0 0.4470 0.7410];
+    hs.MarkerFaceAlpha = 0.5;
+    clear hs sham
+
+    % hs.MarkerFaceAlpha = 0.5;
+    % hs.MarkerFaceColor = [0 0 0];
+    % hs.MarkerFaceAlpha = 0.3;
     xticks(1:length(labels));
     xticklabels(labels);
     xlim([0.2 length(labels)+0.7])
 
     axes1 = b.Parent;
     hold(axes1,'on');
-    set(axes1,'FontSize',20,'FontWeight','bold','LineWidth',2);
+    set(axes1,'LineWidth',2);
     % legend(b, 'Location', 'northeast', 'NumColumns', 2);
     ylim(ylimvalues);
 
@@ -362,11 +388,11 @@ else
     %     title(['Connectivity ' dataname(1:end-4) ' ' Acquisition], 'interpreter', 'none','FontSize',20,'FontWeight','bold')
     subtitleN = [];
     for indgroup = 1:size(groups, 1)
-        eval(['ngroup = sum(overviewtable.' Grouping ' == groups{indgroup});'])
+        ngroup = sum(overviewtable.(Grouping) == groups{indgroup});
         ngroup = ngroup/length(labels); %because you have a row for each ROI and you count them all. divide by 8 and you have the nr of mice
         subtitleN = [subtitleN groups{indgroup} ' N = ' num2str(ngroup) ' -- '];
     end
-    subtitle(subtitleN(1:end-4), 'FontSize', 10)
+    subtitle(subtitleN(1:end-4))
     t = b; %to give return
 end
 end

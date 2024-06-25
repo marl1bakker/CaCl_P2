@@ -1,6 +1,7 @@
 %% Plot example HbO/HbR/GCaMP for fig 1
 % cd 'D:\MarleenTemp\M32-A1-R2\CtxImg'
 % DataFolder = 'D:\MarleenTemp\M32-A1-R2\CtxImg\';
+% DataFolder = '/media/mbakker/GDrive2/P2/GCaMP/M32/A1-R2/CtxImg';
 
 % Note: M32, acquisition 1, Recording 2 used.
 
@@ -55,6 +56,23 @@ f3.Position = [400 100 1000 200];
 % fluopix = dF(coords(1), coords(2), timing(1):timing(2));
 % fluopix = reshape(fluopix, 1, []);
 
+%% get activation points
+%Zscore:
+zF = (dF - mean(dF, 3))./std(dF,0,3);
+%Threshold on Zscore:
+aF = zF >= 1.95;
+% Removing noise:
+for ind = 1:size(aF,3)
+    aF(:,:,ind) = bwmorph(bwmorph(aF(:,:,ind), 'close', inf),'open',inf);
+end
+%Now, we want only the beginning of activations:
+aF = aF(:,:,2:end)&~aF(:,:,1:(end-1));
+aF = cat(3, false(size(aF,1),size(aF,2)), aF);
+
+clear zF ind
+aF = dF.*aF;
+aF(aF==0) = NaN;
+
 %% hbo data
 fid = fopen([DataFolder 'HbO.dat']);
 dH = fread(fid, inf, '*single');
@@ -83,7 +101,7 @@ fclose(fid);
 %% plot together
 %one pixel
 f = figure('InvertHardcopy','off', 'Color', [1 1 1]);
-PlotExampleData(coords, timing, dF, dH, dR)
+PlotExampleData(coords, timing, dF, aF, dH, dR)
 f.Position = [10 10 1500 800];
 title('Example Data Single Pixel','FontSize', 20)
 
@@ -110,9 +128,11 @@ saveas(gcf, [SaveFolder 'ExampleData_Pixel_' num2str(coords(1)) '-' num2str(coor
 end
 
 
-function PlotExampleData(coords, timing, dF, dH, dR)
+function PlotExampleData(coords, timing, dF, aF, dH, dR)
 fluopix = dF(coords(1), coords(2), timing(1):timing(2));
 fluopix = reshape(fluopix, 1, []);
+acts = aF(coords(1), coords(2), timing(1):timing(2));
+acts = reshape(acts, 1, []);
 hbopix = dH(coords(1), coords(2), timing(1):timing(2));
 hbopix = reshape(hbopix, 1, []);
 hbrpix = dR(coords(1), coords(2), timing(1):timing(2));
@@ -125,6 +145,8 @@ x = linspace(1, nrframes/15, nrframes);
 %Left side
 yyaxis left
 plot(x, fluopix, 'Color', [0.4660 0.6740 0.1880], 'LineWidth', 2)
+% hold on
+% plot(x, acts,'*', 'MarkerEdgeColor','black')
 ylabel('Change in GCaMP fluorecence (\Delta F/F)')
 ylim([0.95 1.1]);
 yticks([0.97 1.00 1.03 1.06 1.09])

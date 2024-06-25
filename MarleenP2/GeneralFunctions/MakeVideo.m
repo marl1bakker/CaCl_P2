@@ -69,3 +69,23 @@ for ind = 200:1000
     imagesc(MovMask(ind), [0 1])
     pause(0.0667)
 end
+
+%% movement m26, A2, hbo
+fid = fopen([DataFolder datatype '.dat']);
+dat = fread(fid, inf, '*single');
+dat = reshape(dat, 512,512,[]);
+fclose(fid);
+
+v = VideoWriter('M26-A2-R1-HBO.avi', 'Uncompressed AVI');
+v.FrameRate = 30;
+open(v)
+
+for ind = 7400:7800
+    imagesc(dat(:,:,ind), [-30 30])
+    axis image
+    drawnow
+    F(ind-7399) = getframe(gcf);
+end
+writeVideo(v,F)
+
+close(v)
