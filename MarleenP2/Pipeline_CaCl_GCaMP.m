@@ -39,9 +39,22 @@
 ExampleData_GCaMP_HbO_HbR('/media/mbakker/GDrive2/P2/GCaMP/M32/A1-R2/CtxImg')
 
 %% Figure 2&3 - NVC in sham
-plotNVCinRS('A1', 'OutliersRemoved') %gives for both paper and appendix
-load('/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/allSpecs.mat', 'allSpecs');
-StatsNVCinRS(allSpecs)
+% load('/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/allSpecs.mat', 'allSpecs');
+% StatsNVCinRS(allSpecs)
+% detected on gcamp:
+plotNVCinRS('A1', 'normal') %gives for both paper and appendix - incl stats!
+plotNVCinRS_random('A1', 'hemoCorr_fluo')
+
+% NVC detected on hbo
+plotNVCinRS('A1', 'HbO')
+plotNVCinRS_random('A1', 'HbO')
+
+% Nr of activations and nr of matches
+NumberOfActivations % also gets percentages matching, for hbo and gcamp
+plotNrOfActivations('A1')
+
+%% prove its not a filtering effect - one mouse - appendix
+ExampleData_NoFilt('/media/mbakker/GDrive2/P2/GCaMP/M32/A1-R2/CtxImg')
 
 %% Figure 4 - ultrasound (on Dell, not linux!!)
 % load('C:\Users...)
@@ -54,8 +67,10 @@ CorrMatricesAllAcq('HbR')
 [Stats] = CorrMatricesStats; %saves as excel file for appendix
 
 %% Figure 6 - NVC in sham vs cacl
-plotNVCAllAcq('R', 'OutliersRemoved') % in paper
-plotNVCAllAcq('BigROI', 'OutliersRemoved') % in appendix
+plotNVCAllAcq('R') % in paper
+plotNVCAllAcq('BigROI') % in appendix
+StatsNVCinCaClvsSham
+
 
 
 %% Movement plot (appendix)

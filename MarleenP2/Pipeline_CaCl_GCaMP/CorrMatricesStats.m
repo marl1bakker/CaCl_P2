@@ -4,6 +4,8 @@ Groups = {'CaCl', 'Sham'};
 SaveFolder = '/media/mbakker/GDrive/P2/GCaMP/CombinedCorrMatrices/';
 datatypes = {'GCaMP', 'HbO', 'HbR'};
 Acquisitions = {'A1', 'A2', 'A3'};
+allrois = {'VR', 'SR', 'MR', 'RR', 'VL', 'SL', 'ML', 'RL'};
+[allrois, sortindex] = sort(allrois); % alfabetisch
 
 for inddata = 1:size(datatypes, 2)
     for indAcq = 1:size(Acquisitions, 2)
@@ -89,6 +91,7 @@ for inddata = 1:size(datatypes, 2)
         
         %% Do FDR
         pvalues = reshape(pvalues, 8, 8);
+        pvalues = pvalues(sortindex, sortindex); %alfabetisch
         pvalues = tril(pvalues, -1);
         pvalues = reshape(pvalues, 64, 1);
 
@@ -124,11 +127,15 @@ for inddata = 1:size(datatypes, 2)
         % Keep results
         % eval(['pvalues_' Acq '_' datatype ' = pvalues;'])
         % eval(['qvalues_' Acq '_' datatype ' = qvalues;'])
-        eval(['Stats.pqcombi_' Acq '_' datatype ' = pqcombi;'])
-        writematrix(pqcombi, [SaveFolder 'pqvalues.xlsx'], 'Sheet', [datatype '_' Acq]);
-
-        % writematrix(pqcombi, 'bla.xlsx', 'Sheet', 'Newsheet')
+        % eval(['Stats.pqcombi_' Acq '_' datatype ' = pqcombi;'])
+        % writematrix(pqcombi, [SaveFolder 'pqvalues.xlsx'], 'Sheet', [datatype '_' Acq]);
+        
+        pqcombi(pqcombi == 0) = 1;
+        pqcombi = [['ROIs'; allrois'], [allrois; num2cell(pqcombi)]];
+        writecell(pqcombi, [SaveFolder 'pqvalues.xlsx'], 'Sheet', [datatype '_' Acq]);
+        
     end
+
 end
 
 end     

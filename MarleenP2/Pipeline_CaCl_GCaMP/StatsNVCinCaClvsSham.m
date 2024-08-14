@@ -126,6 +126,7 @@ end
 disp("A3")
 statsoutcome.q(:) = mafdr(statsoutcome.p,'BHFDR', 'true');
 save('/media/mbakker/GDrive/P2/GCaMP/NVC/CaClvsSham/Statsoutcome.mat', 'statsoutcome');
+writetable(statsoutcome, '/media/mbakker/GDrive/P2/GCaMP/NVC/CaClvsSham/Statsoutcome.xlsx')
 
 %% post hoc tests
 % Did not find sign. difference between groups, so no post-hoc was done. 

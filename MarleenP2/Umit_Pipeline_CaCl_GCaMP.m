@@ -81,7 +81,7 @@ for ind = 1:size(Recordings,1)
     teller = 0;
 
     for indfcndone = 1:size(Preproc_functions, 2)
-        if eval(['~isfield(anaReg.' Preproc_functions{indfcndone} ', ''ended'')'])
+        if ~isfield(anaReg.(Preproc_functions{indfcndone}), ended')
             disp(['Exited pipeline because ' Preproc_functions{indfcndone} ...
                 ' is not done for ' Mouse])
             teller = teller +1;
@@ -95,8 +95,11 @@ for ind = 1:size(Recordings,1)
 
     clear Preproc_functions teller indfcndone teller
 
-    RightvsLeft_MakeTable(SaveFolder, 'HbO', 0, 1)
-    RightvsLeft_MakeTable(SaveFolder, 'HbR', 0, 1)
+    %  % For ratios: did not use
+    % RightvsLeft_MakeTable(SaveFolder, 'HbO', 0, 1)
+    % RightvsLeft_MakeTable(SaveFolder, 'HbR', 0, 1)
+
+
 
     %% check if this pipeline is already done (saves printing space)
     Umit_functions = {'HemoCorrection', 'NoFilt', 'Normalization', 'HbOHbR', ...
@@ -263,7 +266,7 @@ for ind = 1:size(Recordings,1)
         anaReg.OutlierMask = [];
         outlier.started = datestr(now);
         try
-            MakeOutlierMask(SaveFolder, 1);
+            MakeOutlierMask(SaveFolder, {'hemoCorr_fluo', 'HbO', 'HbR'}, overwrite);
 
             outlier.ended = datestr(now);
         catch e
@@ -356,6 +359,7 @@ for ind = 1:size(Recordings,1)
     end
 
     clear DataFolder Mouse SaveFolder varlist anaReg Acq
+
 
 end
 

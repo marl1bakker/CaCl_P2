@@ -155,9 +155,14 @@ end
 function PlotTile(data, allrois, axlims)
     nexttile
     ax = gca;
-    data = tril(reshape(data, size(allrois,2), size(allrois,2)));
+    [allrois, sortindex] = sort(allrois); % alfabetisch
+    data = reshape(data, size(allrois,2), size(allrois,2)); % alfabetisch
+    data = data(sortindex, sortindex); % alfabetisch
+    data = tril(data); %alfabethsich
+    % data = tril(reshape(data, size(allrois,2), size(allrois,2))); %non alfabetical
     data(data == 0 ) = NaN;
     data(data == 1 ) = NaN; 
+
     imagesc(ax, data, 'AlphaData', ~isnan(data), axlims)
     ax.Box = 'off';
     axis image

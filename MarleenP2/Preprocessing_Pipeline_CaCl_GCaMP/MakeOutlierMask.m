@@ -3,7 +3,7 @@
 % overlap. It takes M26, A2 seperately since this acquisition has a weird
 % artefact.
 
-function MakeOutlierMask(DataFolder, manualinput, datatypes, overwrite)
+function MakeOutlierMask(DataFolder, datatypes, overwrite)
 
 if( ~strcmp(DataFolder(end), filesep) )
     DataFolder = [DataFolder filesep];
@@ -17,9 +17,9 @@ if ~exist('overwrite', 'var')
     overwrite = 0;
 end
 
-if ~exist('manualinput', 'var')
-    manualinput = 0;
-end
+% if ~exist('manualinput', 'var')
+%     manualinput = 0;
+% end
 
 %% get masks
 seps = strfind(DataFolder, filesep);
@@ -92,17 +92,22 @@ end
 % that influence all channels, but pixels or window artefacts can be
 % specific to certain lights. 
 
+%% patch - delete later!
+% this is just to keep the old outliermask should the new one give problems
+% load([DataFolder 'OutlierMask.mat'], 'OutlierPixels_old');
+% if ~exist('OutlierPixels_old', 'var')
+%     load([DataFolder 'OutlierMask.mat'], 'OutlierPixels')
+%     OutlierPixels_old = OutlierPixels;
+%     save([DataFolder 'OutlierMask.mat'], 'OutlierPixels_old', '-append');
+% end
+
+%%
 if sum(contains(infovar, 'OutlierPixels')) && overwrite == 0
-    % load([DataFolder 'OutlierMask.mat'], 'OutlierPixels');
     disp('Already done')
-    return
-elseif manualinput == 0
-    disp('Manualinput is 0. Pixel Outlier Mask not made.')
     return
 else
     progress = 0;
     w = waitbar(progress, 'Outlier Masks Pixels...');
-    % OutlierPixels = zeros(size(mask));
 
     for ind = 1:size(datatypes,2)
         datatype = datatypes{ind};
@@ -123,71 +128,84 @@ else
         dat(dat == 0) = NaN;
         dat = reshape(dat, 512, 512, []);
 
-        % get outlier pixels
-        % outlierpix = sum(isoutlier(dat, 'median',3),3);
-        outlierpix = sum(isoutlier(dat, 'median', 3),3);
-        threshold = 300;
-
-        % check
-        f1 = figure;
-        % imagesc(sum(outlierpix, 3), [0 300])
-        imagesc(outlierpix, [0 300]);
-        title('outliersum')
-        f1.Position = [20 20 500 400];
-        f2 = figure;
-        imagesc(dat(:,:,find(MovMask, 1, 'first')))
-        title('dat single frame')
-        f2.Position = [520 20 500 400];
-        f3 = figure;
-        imagesc(mean(dat,3, 'omitnan'))
-        title('average dat')
-        f3.Position = [1020 20 500 400];
-
-        outlierpix(outlierpix<threshold) = 1;
-        outlierpix(outlierpix>=threshold) = 0;
-        f4 = figure;
+        %% new 11/6/24
+        outlierpix = sum(isoutlier(dat, 'median', 1),3) + ...
+            sum(isoutlier(dat, 'median', 2),3);
+        threshold = 1000;
+        OutlierPixels.(datatype) = outlierpix<threshold; %keep good ones
+        OutlierPixels.raw.(datatype) = outlierpix;
+        OutlierPixels.thresholds.(datatype) = threshold;
+        f = figure;
         imagesc(outlierpix)
-        title('Outlier mask')
-        f4.Position = [1020 450 500 400];
+        f2 = figure;
+        imagesc(outlierpix<threshold)
+        close(f, f2)
 
-        % answer = questdlg(['Outliermask makes sense? ' datatype]);
-        % while matches(answer, 'No')
-        %     % make new threshold, check if it's better
-        %     outlierpix = sum(isoutlier(dat, 'median', 3),3);
-        %     threshold = inputdlg('New Threshold: ');
-        %     threshold = str2double(threshold);
+        %% old
+        % % get outlier pixels
+        % % outlierpix = sum(isoutlier(dat, 'median',3),3);
+        % outlierpix = sum(isoutlier(dat, 'median', 3),3);
+        % threshold = 300;
         % 
-        %     close(f4)
-        %     outlierpix(outlierpix<threshold) = 1;
-        %     outlierpix(outlierpix>=threshold) = 0;
-        %     f4 = figure;
-        %     imagesc(outlierpix)
-        %     title('Outlier mask')
-        %     f4.Position = [1020 450 500 400];
+        % % check
+        % f1 = figure;
+        % % imagesc(sum(outlierpix, 3), [0 300])
+        % imagesc(outlierpix, [0 300]);
+        % title('outliersum')
+        % f1.Position = [20 20 500 400];
+        % f2 = figure;
+        % imagesc(dat(:,:,find(MovMask, 1, 'first')))
+        % title('dat single frame')
+        % f2.Position = [520 20 500 400];
+        % f3 = figure;
+        % imagesc(mean(dat,3, 'omitnan'))
+        % title('average dat')
+        % f3.Position = [1020 20 500 400];
         % 
-        %     answer = questdlg(['Outliermask makes sense? ' datatype]);
-        %     % return
-        % end
-        % if matches(answer, 'Cancel')
-        %     return
-        % end
-        
-        close(f1, f2, f3, f4)
-        eval(['OutlierPixels.' datatype ' = outlierpix;'])
-        eval(['OutlierPixels.thresholds.' datatype ' = threshold;'])
-
-        %% by hand
-        % bubbles = ones(size(dat, 1), size(dat,2));
-        % answer = questdlg('Manual adjustments needed?');
+        % outlierpix(outlierpix<threshold) = 1;
+        % outlierpix(outlierpix>=threshold) = 0;
+        % f4 = figure;
+        % imagesc(outlierpix)
+        % title('Outlier mask')
+        % f4.Position = [1020 450 500 400];
         % 
-        % while matches(answer, 'Yes')
-        %     imagesc(mean(dat,3, 'omitnan'))
-        %     addroi = drawpolygon;
+        % % answer = questdlg(['Outliermask makes sense? ' datatype]);
+        % % while matches(answer, 'No')
+        % %     % make new threshold, check if it's better
+        % %     outlierpix = sum(isoutlier(dat, 'median', 3),3);
+        % %     threshold = inputdlg('New Threshold: ');
+        % %     threshold = str2double(threshold);
+        % % 
+        % %     close(f4)
+        % %     outlierpix(outlierpix<threshold) = 1;
+        % %     outlierpix(outlierpix>=threshold) = 0;
+        % %     f4 = figure;
+        % %     imagesc(outlierpix)
+        % %     title('Outlier mask')
+        % %     f4.Position = [1020 450 500 400];
+        % % 
+        % %     answer = questdlg(['Outliermask makes sense? ' datatype]);
+        % %     % return
+        % % end
+        % % if matches(answer, 'Cancel')
+        % %     return
+        % % end
         % 
-        %     bubbles = bubbles + addroi;
-        % end
+        % close(f1, f2, f3, f4)
+        % eval(['OutlierPixels_old.' datatype ' = outlierpix;'])
+        % eval(['OutlierPixels_old.thresholds.' datatype ' = threshold;'])
         % 
-        % eval(['ManualOutliers.' datatype ' = ;'])
+        % 
+        % % answer = questdlg('Manual adjustments needed?');
+        % % 
+        % % while matches(answer, 'Yes')
+        % %     imagesc(mean(dat,3, 'omitnan'))
+        % %     addroi = drawpolygon;
+        % % 
+        % %     bubbles = bubbles + addroi;
+        % % end
+        % % 
+        % % eval(['ManualOutliers.' datatype ' = ;'])
 
         progress = progress + 0.15;
         waitbar(progress, w, 'Outlier Mask Pixels...');
@@ -199,6 +217,7 @@ end
 
 %% save
 close(w)
+% save([DataFolder 'OutlierMask.mat'], 'OutlierPixels_old', '-append');
 save([DataFolder 'OutlierMask.mat'], 'OutlierPixels', '-append');
 
 end

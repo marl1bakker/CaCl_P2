@@ -84,9 +84,10 @@ for ind = 1:size(Recordings,1)
     teller = 0;
 
     for indfcndone = 1:size(Preproc_functions, 2)
-        eval(['varlist = who(anaReg, ''' Preproc_functions{indfcndone} ''');'])
+        % eval(['varlist = who(anaReg, ''' Preproc_functions{indfcndone} ''');'])
+        varlist = who(anaReg, Preproc_functions{indfcndone});
         if ( isempty(varlist) || ...
-                eval(['~isfield(anaReg.' Preproc_functions{indfcndone} ', ''ended'')']) )
+                ~isfield(anaReg.(Preproc_functions{indfcndone}), 'ended') )
 
             teller = teller +1;
             break

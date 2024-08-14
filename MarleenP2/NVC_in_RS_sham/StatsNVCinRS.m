@@ -1,26 +1,31 @@
 % load('/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/allSpecs.mat', 'allSpecs');
 
 
-function StatsNVCinRS(allSpecs)
+function StatsNVCinRS(allSpecs, type)
 
 if ~exist('allSpecs', 'var')
-    load('/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/allSpecs.mat', 'allSpecs');
+    load(['/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/allSpecs_' type '.mat'], 'allSpecs');
 end
 
 specs = {'GCaMPPeak', 'HbOPeak','HbRPeak', 'GCaMP_Increase', 'HbO_Increase', 'HbR_Decrease', ...
     'DelaySec', 'ResponseStrength', 'Strength_Increase'};
-spectitles = {'GCaMP peak', 'HbO peak', 'HbR peak', 'GCaMP Increase', 'HbO Increase', 'HbR Decrease', 'Delay', 'Strength', 'Strength of Increase'};
+% spectitles = {'GCaMP peak', 'HbO peak', 'HbR peak', 'GCaMP Increase', 'HbO Increase', 'HbR Decrease', 'Delay', 'Strength', 'Strength of Increase'};
 
 % ROIs = {'VisualROI_R','SensoryROI_R','MotorROI_R','RetrosplenialROI_R',...
 %         'VisualROI_L','SensoryROI_L','MotorROI_L','RetrosplenialROI_L'};
 % ROIs = {'VR','SR','MR','RR','VL','SL','ML','RL'};
 
 %% make good table
+% NEW
+% allSpecs.ResponseStrength = allSpecs.HbOPeak./allSpecs.GCaMPPeak;
+
 % add extra columns
 allSpecs.GCaMP_Increase = allSpecs.GCaMPPeak - allSpecs.GCaMPDipBefore;
 allSpecs.HbO_Increase = allSpecs.HbOPeak - allSpecs.HbODipBefore;
 allSpecs.HbR_Decrease = allSpecs.HbRPeak - allSpecs.HbRDipAfter;
 allSpecs.Strength_Increase = allSpecs.HbO_Increase./(allSpecs.GCaMP_Increase*100);
+% NEW
+% allSpecs.Strength_Increase = allSpecs.HbO_Increase./(allSpecs.GCaMP_Increase);
 allSpecs.GCaMPPeak = allSpecs.GCaMPPeak - 1;
 
 % Move things around and clean up
@@ -95,12 +100,14 @@ for indspec = 1:size(specs,2)
     % - continuous scale for data: true
     % Note: delay is continuous but on a short scale
 
-    disp(specs{indspec})
+    % disp(specs{indspec})
     spectable = ANOVAtable_spec.(specs{indspec});
     specarray = table2array(spectable(:,2:9));
 
     % - normal distribution of data
+    warning off
     [h1, ~] = adtest(reshape(specarray, 1, []));
+    warning onn
     % f1 = figure;
     % histogram(specarray);
     % f2 = figure;
@@ -147,13 +154,15 @@ end
 
 %% FDR
 statsoutcome.q(:) = mafdr(statsoutcome.p,'BHFDR', 'true');
-save('/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/Statsoutcome.mat', 'statsoutcome');
+save(['/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/Statsoutcome_' type '.mat'], 'statsoutcome');
 
 %% post hoc tests
 % Save for article
 sz = [(length(ROIs)^2-length(ROIs))/2 length(specs)+2];
 varTypes = ["string" "string" repmat("double", 1, length(specs))];
 p_table = table('Size', sz, 'VariableTypes', varTypes, 'VariableNames',["ROI_1" "ROI_2" specs]);
+cld_table = table;
+cld_table.ROI = ROIs';
 
 % give right names for roi_1 and roi_2
 indstart = 1;
@@ -170,11 +179,11 @@ end
 
 for indspec = 1:size(specs,2)
     if statsoutcome.q(indspec) > 0.05
-        disp([specs{indspec} ' has no sign. difference between brain regions'])
+        % disp([specs{indspec} ' has no sign. difference between brain regions'])
         continue
     end
 
-    disp(specs{indspec})
+    % disp(specs{indspec})
     spectable = ANOVAtable_spec.(specs{indspec});
     specarray = table2array(spectable(:,2:9));
 
@@ -183,7 +192,23 @@ for indspec = 1:size(specs,2)
             % ranovatbl = ranova(rm);
             % multcompare(rm, 'ROI');
             % dont have any normal ranova, make code if it turns out you do
-            disp('ranova without GG - check if went right, make code if yes')
+            % disp('ranova without GG - check if went right, make code if yes')
+
+            rm = fitrm(spectable, "ML-VR~1", 'WithinDesign',meas);
+            ranovatbl = ranova(rm, 'WithinModel', 'ROI');
+            [c56] = multcompare(rm, 'ROI');
+
+            % remove double p values
+            c = table;
+            for ind = 1:size(c56,1)
+                if sum(c56.ROI_1(1:ind) == c56.ROI_2(ind)) == 0
+                    c = [c; c56(ind,:)];
+                end
+            end
+
+            p_table.(specs{indspec}) = c.pValue;
+            cld_temp = cld(c56);
+            cld_table.(specs{indspec}) = cld_temp.letter;
 
         case  "ranova-GG"
             rm = fitrm(spectable, "ML-VR~1", 'WithinDesign',meas);
@@ -199,16 +224,28 @@ for indspec = 1:size(specs,2)
             end
 
             p_table.(specs{indspec}) = c.pValue;
+            cld_temp = cld(c56);
+            cld_table.(specs{indspec}) = cld_temp.letter;
 
         case 'friedman'
             [~, ~, stats] = friedman(specarray, 1, 'off');
-            [c, ~, ~, ~] = multcompare(stats); %multcompare default is tukey-kramer
+            [c, ~, ~, ~] = multcompare(stats, 'Display', 'off'); %multcompare default is tukey-kramer
 
             c = array2table(c, "VariableNames",...
                 ["ROI_1", "ROI_2", "Lower Limit", "ROI_1-ROI_2", "Upper Limit", "pValue"]);
             %note: m/means and difference between groups is based on rank
 
             p_table.(specs{indspec}) = c.pValue;
+            c2 = c;
+            c2.Properties.VariableNames(1) = "ROI_21";
+            c2.Properties.VariableNames(2) = "ROI_1";
+            c2.Properties.VariableNames(1) = "ROI_2";
+            c2 = movevars(c2, 1, "Before", 3);
+            c56 = [c; c2];
+            c56 = sortrows(c56);
+            cld_temp = cld(c56);
+            cld_table.(specs{indspec}) = cld_temp.letter;
+
     end
 
     posthocoutcome.(specs{indspec}) = c;
@@ -216,7 +253,8 @@ for indspec = 1:size(specs,2)
 end
 
 %% save 
-save('/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/Posthoc_outcome.mat', 'posthocoutcome');
-writetable(p_table, '/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/Posthoc_outcome.xlsx')
-writetable(statsoutcome, '/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/Stats_outcome.xlsx')
+save(['/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/Posthoc_outcome_' type '.mat'], 'posthocoutcome', 'cld_table');
+writetable(p_table, ['/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/Posthoc_outcome_' type '.xlsx'])
+writetable(statsoutcome, ['/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/Stats_outcome_' type '.xlsx'])
+
 end

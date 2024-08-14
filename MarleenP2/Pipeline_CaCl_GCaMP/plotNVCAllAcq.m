@@ -21,9 +21,9 @@ if ~exist('type','var') || matches(type, 'normal')
     type = 'normal';
     datanamefluocurves = 'hemoCorr_fluo';
     NVCname = 'NVC_ROI';
-elseif matches(type, 'OutliersRemoved')
-    datanamefluocurves = 'hemoCorr_fluo';
-    NVCname = 'NVC_ROI_OL_removed';
+% elseif matches(type, 'OutliersRemoved')
+%     datanamefluocurves = 'hemoCorr_fluo';
+%     NVCname = 'NVC_ROI_OL_removed';
 elseif matches(type, 'nofilt')
     datanamefluocurves = 'fluo_nofilt';
     NVCname = ['NVC_ROI_' datanamefluocurves];
@@ -89,9 +89,9 @@ for indAcq = 1:size(Acquisitions, 2)
     end
     allSpecs.(Acq) = AcqSpecs;
 
-    [Acqmeans,Acqsems] = ArrayAllCurves(Grouping, groups, RecordingOverview, Acq, ROIs, datanamefluocurves, NVCname);
-    means.(Acq) = Acqmeans;
-    sems.(Acq) = Acqsems;
+    % [Acqmeans,Acqsems] = ArrayAllCurves(Grouping, groups, RecordingOverview, Acq, ROIs, datanamefluocurves, NVCname);
+    % means.(Acq) = Acqmeans;
+    % sems.(Acq) = Acqsems;
 
     clear AcqSpecs Acqmeans Acqsems ind
 end
@@ -197,8 +197,9 @@ function [allSpecs] = TableAllSpecs(RecordingOverview, Acquisition, ROInames, da
 for ind = 1:size(RecordingOverview, 1) %go per mouse
     Mouse = RecordingOverview.Mouse{ind};
 
-    eval(['DataFolder = [RecordingOverview.' Acquisition '{ind} filesep];']);
-    DataFolder = DataFolder;
+    % eval(['DataFolder = [RecordingOverview.' Acquisition '{ind} filesep];']);
+    DataFolder = [RecordingOverview.(Acquisition){ind} filesep];
+    % DataFolder = DataFolder;
     SaveFolder = [RecordingOverview.SaveDirectory{ind} filesep Mouse filesep DataFolder(end-5:end) 'CtxImg' filesep];
 
     if matches(Mouse, 'M23')
@@ -212,8 +213,6 @@ for ind = 1:size(RecordingOverview, 1) %go per mouse
         disp(Mouse)
         if matches(NVCname, 'NVC_ROI_unweighted')
             GetAverageCurves_unweighted(SaveFolder, datanamefluocurves); % if you didnt make the nvc curves yet
-        else
-            GetAverageCurves(SaveFolder, NVCname, datanamefluocurves); % if you didnt make the nvc curves yet
         end
         disp(['GetAverageCurves done for ' Mouse])
     end
@@ -222,19 +221,19 @@ for ind = 1:size(RecordingOverview, 1) %go per mouse
 
     % %temp
     % patch for when dips and peaks were not in GetAverageCurves yet:
-    if ~sum(contains(Specs.Properties.VariableNames, 'HbRDipAfter'))
-        regions = Specs.ROI;
-        Specs = [];
-        load([SaveFolder NVCname '.mat'], 'fluocurves', 'hbocurves', 'hbrcurves');
-        imfreq = 15;
-
-        for indroi = 1:size(regions,1)
-            [tempSpecs] = GetSpecsPatch(fluocurves, hbocurves, hbrcurves, ...
-                regions{indroi}, 5*imfreq, imfreq);
-            Specs = [Specs; tempSpecs];
-        end
-        save([SaveFolder NVCname '.mat'], 'Specs', "-append")
-    end
+    % if ~sum(contains(Specs.Properties.VariableNames, 'HbRDipAfter'))
+    %     regions = Specs.ROI;
+    %     Specs = [];
+    %     load([SaveFolder NVCname '.mat'], 'fluocurves', 'hbocurves', 'hbrcurves');
+    %     imfreq = 15;
+    % 
+    %     for indroi = 1:size(regions,1)
+    %         [tempSpecs] = GetSpecsPatch(fluocurves, hbocurves, hbrcurves, ...
+    %             regions{indroi}, 5*imfreq, imfreq);
+    %         Specs = [Specs; tempSpecs];
+    %     end
+    %     save([SaveFolder NVCname '.mat'], 'Specs', "-append")
+    % end
 
     Specsmouse = Specs;
 
@@ -257,77 +256,79 @@ end
 end
 
 
-function [Specs] = GetSpecsPatch(fluo, hbo, hbr, roiname, timebefore, imfreq)
-VarNames = {'ROI', 'DelaySec', 'DelayFrames', 'ResponseStrength', 'ResponseStrengthRelative'...
-    'GCaMPDipBefore', 'GCaMPPeak', 'GCaMPDipAfter',...
-    'HbODipBefore', 'HbOPeak', 'HbODipAfter', ...
-    'HbRDipBefore', 'HbRPeak', 'HbRDipAfter'};
-VarTypes =     {'cell', 'single', 'single', 'single', 'single', ...
-    'single', 'single', 'single',...
-    'single', 'single', 'single',...
-    'single', 'single', 'single'};
-Specs = table('Size', size(VarNames), 'VariableNames', VarNames, ...
-    'VariableTypes', VarTypes);
+% function [Specs] = GetSpecsPatch(fluo, hbo, hbr, roiname, timebefore, imfreq)
+% VarNames = {'ROI', 'DelaySec', 'DelayFrames', 'ResponseStrength', 'ResponseStrengthRelative'...
+%     'GCaMPDipBefore', 'GCaMPPeak', 'GCaMPDipAfter',...
+%     'HbODipBefore', 'HbOPeak', 'HbODipAfter', ...
+%     'HbRDipBefore', 'HbRPeak', 'HbRDipAfter'};
+% VarTypes =     {'cell', 'single', 'single', 'single', 'single', ...
+%     'single', 'single', 'single',...
+%     'single', 'single', 'single',...
+%     'single', 'single', 'single'};
+% Specs = table('Size', size(VarNames), 'VariableNames', VarNames, ...
+%     'VariableTypes', VarTypes);
+% 
+% 
+% Specs.ROI = cellstr(roiname);
+% 
+% [maxfluo, indfluo] = findpeaks(fluo.(roiname)(timebefore:end)); %find first peak after detected activation
+% if isempty(maxfluo) %if there's only nan
+%     Specs.DelaySec = NaN;
+%     Specs.DelayFrames = NaN;
+%     Specs.ResponseStrength = NaN;
+%     return
+% end
+% 
+% % GCaMPPeak
+% indfluo = timebefore + indfluo(1) - 1;
+% maxfluo = maxfluo(1);
+% Specs.GCaMPPeak = maxfluo;
+% % GCaMPDipBefore & GCaMPDipAfter
+% indDips = islocalmin(fluo.(roiname));
+% indDipBefore = find(indDips(1:indfluo(1)), 1, 'last');
+% Specs.GCaMPDipBefore = fluo.(roiname)(indDipBefore);
+% indDipAfter = indDipBefore + find(indDips(indDipBefore+1:end), 1, 'first');
+% Specs.GCaMPDipAfter = fluo.(roiname)(indDipAfter);
+% 
+% %HbOPeak
+% eval(['[maxhbo, indhbo] = findpeaks(hbo.' roiname '(indfluo:end));'])
+% indhbo = indfluo + indhbo(1) - 1;
+% maxhbo = maxhbo(1);
+% Specs.HbOPeak = maxhbo;
+% % HbODipBefore & HbODipAfter
+% indDips = islocalmin(hbo.(roiname));
+% indDipBefore = find(indDips(1:indfluo(1)), 1, 'last');
+% Specs.HbODipBefore = hbo.(roiname)(indDipBefore);
+% indDipAfter = indDipBefore + find(indDips(indDipBefore+1:end), 1, 'first');
+% Specs.HbODipAfter = hbo.(roiname)(indDipAfter);
+% 
+% %HbRPeak
+% [maxhbr, ~] = findpeaks(hbr.(roiname)(indfluo:end));
+% maxhbr = maxhbr(1);
+% Specs.HbRPeak = maxhbr;
+% % HbRDipBefore & HbRDipAfter
+% indDips = islocalmin(hbr.(roiname));
+% indDipBefore = find(indDips(1:indfluo(1)), 1, 'last');
+% Specs.HbRDipBefore = hbr.(roiname)(indDipBefore);
+% indDipAfter = indDipBefore + find(indDips(indDipBefore+1:end), 1, 'first');
+% Specs.HbRDipAfter = hbr.(roiname)(indDipAfter);
+% 
+% %Delays
+% Specs.DelaySec = (indhbo - indfluo)/imfreq; %in seconds
+% Specs.DelayFrames = indhbo - indfluo;
+% maxfluo = (maxfluo-1) *100; % in percentage
+% 
+% % Response Strengths
+% Specs.ResponseStrength = maxhbo / maxfluo;
+% increasefluo = Specs.GCaMPPeak - Specs.GCaMPDipBefore;
+% increasehbo = Specs.HbOPeak - Specs.HbODipBefore;
+% Specs.ResponseStrengthRelative = increasehbo/increasefluo;
+% 
+% end
+% 
 
 
-Specs.ROI = cellstr(roiname);
-
-[maxfluo, indfluo] = findpeaks(fluo.(roiname)(timebefore:end)); %find first peak after detected activation
-if isempty(maxfluo) %if there's only nan
-    Specs.DelaySec = NaN;
-    Specs.DelayFrames = NaN;
-    Specs.ResponseStrength = NaN;
-    return
-end
-
-% GCaMPPeak
-indfluo = timebefore + indfluo(1) - 1;
-maxfluo = maxfluo(1);
-Specs.GCaMPPeak = maxfluo;
-% GCaMPDipBefore & GCaMPDipAfter
-indDips = islocalmin(fluo.(roiname));
-indDipBefore = find(indDips(1:indfluo(1)), 1, 'last');
-Specs.GCaMPDipBefore = fluo.(roiname)(indDipBefore);
-indDipAfter = indDipBefore + find(indDips(indDipBefore+1:end), 1, 'first');
-Specs.GCaMPDipAfter = fluo.(roiname)(indDipAfter);
-
-%HbOPeak
-eval(['[maxhbo, indhbo] = findpeaks(hbo.' roiname '(indfluo:end));'])
-indhbo = indfluo + indhbo(1) - 1;
-maxhbo = maxhbo(1);
-Specs.HbOPeak = maxhbo;
-% HbODipBefore & HbODipAfter
-indDips = islocalmin(hbo.(roiname));
-indDipBefore = find(indDips(1:indfluo(1)), 1, 'last');
-Specs.HbODipBefore = hbo.(roiname)(indDipBefore);
-indDipAfter = indDipBefore + find(indDips(indDipBefore+1:end), 1, 'first');
-Specs.HbODipAfter = hbo.(roiname)(indDipAfter);
-
-%HbRPeak
-[maxhbr, ~] = findpeaks(hbr.(roiname)(indfluo:end));
-maxhbr = maxhbr(1);
-Specs.HbRPeak = maxhbr;
-% HbRDipBefore & HbRDipAfter
-indDips = islocalmin(hbr.(roiname));
-indDipBefore = find(indDips(1:indfluo(1)), 1, 'last');
-Specs.HbRDipBefore = hbr.(roiname)(indDipBefore);
-indDipAfter = indDipBefore + find(indDips(indDipBefore+1:end), 1, 'first');
-Specs.HbRDipAfter = hbr.(roiname)(indDipAfter);
-
-%Delays
-Specs.DelaySec = (indhbo - indfluo)/imfreq; %in seconds
-Specs.DelayFrames = indhbo - indfluo;
-maxfluo = (maxfluo-1) *100; % in percentage
-
-% Response Strengths
-Specs.ResponseStrength = maxhbo / maxfluo;
-increasefluo = Specs.GCaMPPeak - Specs.GCaMPDipBefore;
-increasehbo = Specs.HbOPeak - Specs.HbODipBefore;
-Specs.ResponseStrengthRelative = increasehbo/increasefluo;
-
-end
-
-
+% only  need this when you want to plot curves:
 function [Means,SEMs] = ArrayAllCurves(Grouping, groups, RecordingOverview, Acquisition, ROInames, datanamefluocurves, NVCname)
 % if matches(datanamefluocurves, 'hemoCorr_fluo')
 %     NVCname = 'NVC_ROI';
