@@ -274,6 +274,7 @@ for ind = 1:size(Recordings,1)
 %             SeedGenerator(SaveFolder) %new 15-6-23, have to test
             ClusterRois(SaveFolder, 1)
             Correct_for_rotation_ROI(SaveFolder)
+
         end
     elseif ~exist([SaveDirs{ind} filesep Mouse filesep 'ImagingReferenceFrame.mat'], 'file')
         disp(['To do: ROI & Mask for ' Mouse ])

@@ -1,10 +1,20 @@
 % load('/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/allSpecs.mat', 'allSpecs');
 
 
-function StatsNVCinRS(allSpecs, type)
+function StatsNVCinRS(SaveDir, allSpecs, type, Acq)
+
+if ~exist('Acq', 'var')
+    Acq = 'A1';
+end
+
+if ~exist('SaveDir', 'var')
+    SaveDir = '/media/mbakker/GDrive/P2/GCaMP/';
+elseif ~matches(SaveDir(end), filesep)
+    SaveDir = [SaveDir filesep];
+end
 
 if ~exist('allSpecs', 'var')
-    load(['/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/allSpecs_' type '.mat'], 'allSpecs');
+    load([SaveDir 'NVC/Sham_RS/allSpecs_' type '_' Acq '.mat'], 'allSpecs');
 end
 
 specs = {'GCaMPPeak', 'HbOPeak','HbRPeak', 'GCaMP_Increase', 'HbO_Increase', 'HbR_Decrease', ...
@@ -154,7 +164,7 @@ end
 
 %% FDR
 statsoutcome.q(:) = mafdr(statsoutcome.p,'BHFDR', 'true');
-save(['/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/Statsoutcome_' type '.mat'], 'statsoutcome');
+save([SaveDir 'NVC/Sham_RS/Statsoutcome_' type '_' Acq '.mat'], 'statsoutcome');
 
 %% post hoc tests
 % Save for article
@@ -253,8 +263,8 @@ for indspec = 1:size(specs,2)
 end
 
 %% save 
-save(['/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/Posthoc_outcome_' type '.mat'], 'posthocoutcome', 'cld_table');
-writetable(p_table, ['/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/Posthoc_outcome_' type '.xlsx'])
-writetable(statsoutcome, ['/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/Stats_outcome_' type '.xlsx'])
+save([SaveDir 'NVC/Sham_RS/Posthoc_outcome_' type '_' Acq '.mat'], 'posthocoutcome', 'cld_table');
+writetable(p_table, [SaveDir 'NVC/Sham_RS/Posthoc_outcome_' type '_' Acq '.xlsx'])
+writetable(statsoutcome, [SaveDir 'NVC/Sham_RS/Stats_outcome_' type '_' Acq '.xlsx'])
 
 end

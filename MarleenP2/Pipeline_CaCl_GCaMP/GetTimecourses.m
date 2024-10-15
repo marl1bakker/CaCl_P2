@@ -5,7 +5,9 @@
 % option can be centroids or average over the whole region
 %give dataname without .dat at the end
 
-function GetTimecourses(DataFolder, dataname, manualinput)
+% GSR option added 9-10-24 after feedback
+
+function GetTimecourses(DataFolder, dataname, manualinput, GSR)
 % if ~exist('option', 'var')
     option = 'centroids';
 % end
@@ -30,6 +32,10 @@ elseif ~exist([DataFolder 'Seeds.mat'], 'file')
     GetSeeds(DataFolder)
 end
 
+if ~exist('GSR', 'var')
+    GSR = 0;
+end
+
 savename = ['timecourses_' dataname '_' option];
 
 %% Get ROI
@@ -38,7 +44,8 @@ load([DataFolder 'Seeds.mat'], 'Mask')
 regions = fields(Mask);
 % load([DataFolder(1:seps(end-2)) 'BigROI.mat'], 'AtlasMask', 'regions','BigROI');
 load([DataFolder 'OutlierMask.mat'], 'OutlierPixels');
-eval(['OutlierPixels = OutlierPixels.' dataname ';']);
+% eval(['OutlierPixels = OutlierPixels.' dataname ';']);
+OutlierPixels = OutlierPixels.(dataname);
 
 %% Get data
 fid = fopen([DataFolder dataname '.dat']);
@@ -47,16 +54,32 @@ dat = reshape(dat,512,512,[]);
 fclose(fid);
 dims = size(dat);
 
-% Get data sanity check
-fid = fopen([DataFolder 'fluo_567.dat']);
-fl = fread(fid, 512*512, '*single');
-fl = reshape(fl, 512, 512);
-fclose(fid);
-fid = fopen([DataFolder 'green.dat']);
-gr = fread(fid, 512*512, '*single');
-gr = reshape(gr, 512, 512);
-fclose(fid);
-MaskAllCentroids = zeros(512, 512);
+% % Get data sanity check
+% fid = fopen([DataFolder 'fluo_567.dat']);
+% fl = fread(fid, 512*512, '*single');
+% fl = reshape(fl, 512, 512);
+% fclose(fid);
+% fid = fopen([DataFolder 'green.dat']);
+% gr = fread(fid, 512*512, '*single');
+% gr = reshape(gr, 512, 512);
+% fclose(fid);
+% MaskAllCentroids = zeros(512, 512);
+
+%% GSR
+% note: outlierframes/movement frames are deleted later. Maybe better to do
+% GSR after? Don't think it will matter much, check
+if GSR == 1
+    dat = reshape(dat,[], dims(3));
+    mS = mean(dat,1, 'omitnan');
+
+    X = [ones(size(mS)); mS];
+    B = X'\dat';
+    A = (X'*B)';
+    % dat = dat./A;
+    dat = dat-A; %cause we are close to 0
+    %     dat = reshape(dat,dims);
+    clear h mS X B A;
+end
 
 %% Get timecourses
 AllRois = {};
@@ -66,7 +89,8 @@ for ind = 1:size(regions, 1)
     name = regions{ind};
 
     % disp(name)
-    eval(['seedmask = Mask.' name ';'])
+    % eval(['seedmask = Mask.' name ';'])
+    seedmask = Mask.(name);
     seedmask = logical(seedmask.*OutlierPixels);
 
     if( sum(seedmask(:)) >= 1 )
@@ -75,7 +99,7 @@ for ind = 1:size(regions, 1)
 
         % Sanity check
         if (matches(dataname, 'hemoCorr_fluo')) && ...
-                (mean(Signal) < 0.99 || mean(Signal) > 1.01)
+                (mean(Signal) < 0.99-GSR || mean(Signal) > 1.01-GSR) % GSR is around 0 so adjust
             disp(['*** GETTIMECOURSES NOT AV 1 FOR fluo ' DataFolder])
             error('Signal not centered on 1')
         elseif (matches(dataname, 'HbO') || matches(dataname, 'HbR')) && ...
@@ -92,7 +116,11 @@ for ind = 1:size(regions, 1)
 end
 
 %% Save
-save([DataFolder savename '.mat'], 'AllRois');
+if GSR == 1
+    save([DataFolder savename '_GSR.mat'], 'AllRois');
+else
+    save([DataFolder savename '.mat'], 'AllRois');
+end
 
 end
 

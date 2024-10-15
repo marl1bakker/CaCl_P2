@@ -347,8 +347,8 @@ end
 save([DataFolder NVCname '.mat'], 'fluocurves', 'hbocurves', 'hbrcurves', 'hbtcurves', 'Specs');
 if incl_random
     save([DataFolder NVCname '_random.mat'], 'fluocurves_random', 'hbocurves_random', 'hbrcurves_random', 'hbtcurves_random');
-%% temp
-delete([DataFolder 'NVC_ROI_HBO.mat']);
+% %% temp
+% delete([DataFolder 'NVC_ROI_HBO.mat']);
 
 end
 end

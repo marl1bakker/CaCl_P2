@@ -448,7 +448,8 @@ end
 
 % BOXPLOT
 %dont display outliers because we will do scatter that will show them
-eval(['b = boxchart(overviewtable.idx, overviewtable.y, ''GroupByColor'', overviewtable.' Grouping ', ''LineWidth'', 2, ''MarkerStyle'', ''none'');'])
+% eval(['b = boxchart(overviewtable.idx, overviewtable.y, ''GroupByColor'', overviewtable.' Grouping ', ''LineWidth'', 2, ''MarkerStyle'', ''none'');'])
+b = boxchart(overviewtable.idx, overviewtable.y, 'GroupByColor', overviewtable.(Grouping), 'LineWidth', 2, 'MarkerStyle', 'none');
 hold on
 
 % SCATTER

@@ -19,6 +19,43 @@ else
     end
 end
 
+%% anatomical image (added after feedback 9-10-24)
+seps = strfind(DataFolder, filesep);
+load([DataFolder(1:seps(end-2)) 'BigROI.mat'], 'AtlasMask')
+AtlasMask(AtlasMask~=0) = 1;
+
+figure
+t = tiledlayout(1,3, 'TileSpacing','tight', 'Padding','tight');
+
+datatypes = {'fluo_567', 'green', 'red'};
+for ind = 1:size(datatypes,2)
+    fid = fopen([DataFolder datatypes{ind} '.dat']);
+    dat = fread(fid, inf, '*single');
+    dat = reshape(dat, 512, 512, []);
+    fclose(fid);
+    Anatomical_image.(datatypes{ind}) = mean(dat,3);
+    % save([DataFolder 'Anatomical.mat'], 'Anatomical_image')
+    clear dat fid
+
+    nexttile
+    imagesc(Anatomical_image.(datatypes{ind}).*AtlasMask)
+    axis('image'); axis('equal'); axis('off'); colormap('gray');
+
+    line([20 20], [420 470], 'color', 'red') %50 pix = 1 mm
+    line([20 70], [470 470], 'color', 'red')
+
+    title(datatypes{ind}, 'Interpreter', 'none')
+
+end
+
+Mouse = DataFolder(seps(end-3)+1:seps(end-2)-1); %hardcoded
+Acq = DataFolder(seps(end-2)+1:seps(end-1)-1);
+
+title(t,[Mouse ' ' Acq]);
+
+saveas(gcf, [SaveFolder 'Anatomical_with_atlas_' Mouse '_' Acq '.svg'], 'svg');
+clear Anatomical_image seps AtlasMask Mouse Acq
+
 %% Movement
 load([DataFolder 'MovMask.mat'], 'MovMask');
 
@@ -28,6 +65,7 @@ dF = fread(fid, inf, '*single');
 dF = reshape(dF, 512,512,[]);
 fclose(fid);
 
+%%
 if ~exist("coords", 'var')
     coords = [300 300];
 end

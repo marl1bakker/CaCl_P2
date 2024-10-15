@@ -29,7 +29,7 @@ load([DataFolder 'MovMask.mat'], 'MovMask');
 Mouse = DataFolder(seps(end-3)+1:seps(end-2)-1);
 Acq = DataFolder(seps(end-2)+1:seps(end-2)+2);
 
-if exist([DataFolder 'OutlierMask.mat']) 
+if exist([DataFolder 'OutlierMask.mat'], 'file') 
     infovar = who('-file', [DataFolder 'OutlierMask.mat']);
 else
     infovar = 'none';

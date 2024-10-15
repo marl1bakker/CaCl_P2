@@ -38,11 +38,13 @@
 %% Figure 1, timecourse single pixel
 ExampleData_GCaMP_HbO_HbR('/media/mbakker/GDrive2/P2/GCaMP/M32/A1-R2/CtxImg')
 
+
 %% Figure 2&3 - NVC in sham
 % load('/media/mbakker/GDrive/P2/GCaMP/NVC/Sham_RS/allSpecs.mat', 'allSpecs');
 % StatsNVCinRS(allSpecs)
 % detected on gcamp:
 plotNVCinRS('A1', 'normal') %gives for both paper and appendix - incl stats!
+significance_matrix('A1', 'normal') %added after reviewer comment
 plotNVCinRS_random('A1', 'hemoCorr_fluo')
 
 % NVC detected on hbo
@@ -65,6 +67,9 @@ CorrMatricesAllAcq
 CorrMatricesAllAcq('HbO')
 CorrMatricesAllAcq('HbR')
 [Stats] = CorrMatricesStats; %saves as excel file for appendix
+
+% With GSR
+
 
 %% Figure 6 - NVC in sham vs cacl
 plotNVCAllAcq('R') % in paper

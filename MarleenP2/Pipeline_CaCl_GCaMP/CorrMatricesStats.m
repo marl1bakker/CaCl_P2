@@ -120,7 +120,7 @@ for inddata = 1:size(datatypes, 2)
         q(q==0) = NaN;
         pvalues(pvalues==0) = NaN;
 
-        if any(q<0.05)
+        if sum(any(q<0.05))
             disp('HHHHHHHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA HOLY SHIT')
         end
 

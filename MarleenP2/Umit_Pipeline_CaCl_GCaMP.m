@@ -298,6 +298,7 @@ for ind = 1:size(Recordings,1)
 
             try %if yes, try to calculate timecourses
                 GetTimecourses(SaveFolder, 'hemoCorr_fluo', ManualInput)
+                GetTimecourses(SaveFolder, 'hemoCorr_fluo', ManualInput, 1) %with GSR
                 Timecoursesvar.ended = datestr(now);
 
             catch e
@@ -336,6 +337,8 @@ for ind = 1:size(Recordings,1)
             try %if yes, try to calculate timecourses
                 GetTimecourses(SaveFolder, 'HbO', ManualInput)
                 GetTimecourses(SaveFolder, 'HbR', ManualInput)
+                GetTimecourses(SaveFolder, 'HbO', ManualInput,1) %with GSR
+                GetTimecourses(SaveFolder, 'HbR', ManualInput,1) %with GSR
                 Timecoursesvar.ended = datestr(now);
 
             catch e
