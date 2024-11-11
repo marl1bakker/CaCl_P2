@@ -10,20 +10,19 @@
 % Don't forget that besides the current files from github, you will also
 % need the Labeo package Umit-master for this pipeline to work:
 % github.com/LabeoTech/Umit
+% and the matnwb-master package to transform the .nwb files to .dat files
 
 % Provided example data is of mouse M32, A1, R2 (a sham mouse), and M34, A1, 
 % R2 (a CaCl treated mouse). 
 % Change path for rawdatafolder to match where you saved the data. Same for 
 % SaveFolder, but make sure you keep the structure of M../A.-R./CtxImg and 
-% that your SaveFolder contains 'GCaMP' somewhere.
+% that your SaveFolder contains 'GCaMP' somewhere. You can change the
+% datafolder below to the path to your raw data and keep the savefolder as
+% is and that should work.
 
 % M32 = Sham
-DataFolder = '/home/mbakker/P2_scripts/MarleenP2/ExampleData/M32-A1-R2/'; 
-SaveFolder = '/home/mbakker/P2_scripts/MarleenP2/ExampleData/GCaMP/M32/A1-R2/CtxImg/';
-
-% %M34 = CaCl
-% DataFolder = '/home/mbakker/P2_scripts/MarleenP2/Example/ExampleData/M34-A1-R2/'; 
-% SaveFolder = '/home/mbakker/P2_scripts/MarleenP2/Example/ExampleData/GCaMP/M34/A1-R2/CtxImg/';
+DataFolder = '/home/mbakker/P2_scripts/MarleenP2/ExampleData/M32-A1-R2/bin-nwb';
+SaveFolder = [DataFolder filesep 'GCaMP' filesep 'M32' filesep 'A1-R2' filesep 'CtxImg' filesep];
 
 mkdir(SaveFolder);
 
@@ -34,13 +33,25 @@ mkdir(SaveFolder);
 
 %% Preprocessing_Pipeline_CaCl_GCaMP:
 %% Sort colours
-ImagesClassification(DataFolder, SaveFolder, 1, 1, 0);
+% Normally, to convert the raw .bin files to .dat files, we run:
+
+% ImagesClassification(DataFolder, SaveFolder, 1, 1, 0);
+
 % This will give you a files called 'fluo_475.dat', 'fluo_567.dat', 
 % 'green.dat', 'red.dat', all corresponding matfiles, and 'AcqInfos.mat'. 
 % The only reason that fluo_475.dat is there is because of the way the
 % system saves data. This data is nonsense though, as our channel is
 % fluo_567. You can delete the unnecessary data but ONLY AFTER DOING THE
 % DICHROIC CORRECTION. Otherwise, code will bug. 
+
+% HOWEVER if you recieved data via DANDI, it is saved as .nwb file. In this
+% case, we skip the ImagesClassification, and convert the .nwb data to
+% .dat. Run this:
+
+DANDI_NWB_conversion(DataFolder, 'nwb-dat', SaveFolder)
+
+% It will save less information in the AcqInfos.mat file 
+% but it should have all the necessary info to run the pipeline. 
 
 % You can check the data like this:
 fid = fopen([SaveFolder 'fluo_567.dat']); %change if you want to see green or red
@@ -59,9 +70,14 @@ end
 clear dat
 
 %% Mark movement based on treadmill
-MarkMovedFrames(DataFolder, SaveFolder);
+% if you have the raw .bin files, you would do (If you get the data from 
+% DANDI, this function is already run.) : 
+
+% MarkMovedFrames(DataFolder, SaveFolder);
+
 % This will give you the variable "MovMask.mat". If you open it, you can
-% see when the mouse had detected movement on the threadmill:
+% see when the mouse had detected movement on the treadmill:
+
 load([SaveFolder 'MovMask.mat'])
 figure
 plot(MovMask)
@@ -79,11 +95,11 @@ clear MovMask
 % asking of the coregistration was correct. If not, you can coregister the
 % images yourself. 
 % The red.dat file will be overwritten with the coregistered data (as will
-% the fluo_475 but we don't care about that one). 
+% the fluo_475 if you had it but we don't care about that one). 
 CorrectDichroic(SaveFolder)
 
 % see sort colours
-delete([SaveFolder 'fluo_475.dat'])
+% delete([SaveFolder 'fluo_475.dat'])
 delete([SaveFolder 'fluo_475.mat'])
 
 %% flip left/right 
@@ -91,6 +107,7 @@ delete([SaveFolder 'fluo_475.mat'])
 % the left hemisphere on the left and the right on the right. This
 % overwrites the .dat files. MAKE SURE YOU ONLY DO THIS ONCE. 
 
+%This is data for Figure 1 E. 
 for datfile = {'green', 'red', 'fluo_567'}
     fid = fopen([SaveFolder char(datfile) '.dat']);
     dat = fread(fid, inf, '*single');
@@ -102,13 +119,16 @@ for datfile = {'green', 'red', 'fluo_567'}
     fid = fopen([SaveFolder char(datfile) '.dat'], 'w');
     fwrite(fid,dat,'single');
     fclose(fid);
+
+    figure; imagesc(mean(dat,3)); colormap('gray')
+    title(datfile, 'Interpreter', 'none')
 end
 
-% This is nice data for Figure 1 F. You flipped fluo last so you should
+% You flipped fluo last so you should
 % have that one loaded. We will plot the ROI over that later.
 Anatomical_image = mean(dat,3);
-figure
-imagesc(Anatomical_image)
+% figure
+% imagesc(Anatomical_image)
 save([SaveFolder 'Anatomical.mat'], 'Anatomical_image')
 
 clear dat
@@ -161,11 +181,13 @@ Correct_for_rotation_ROI(SaveFolder)
 % don't do that. However, you can always make an anatomical image by
 % opening the fluo_567.dat data, since we rename the working data to
 % hemoCorr_fluo.dat after this step. 
+% Mouse from figure 1F is M34, a1-r2
 seps = strfind(SaveFolder, filesep);
 load([SaveFolder(1:seps(end-2)) 'BigROI.mat'], 'AtlasMask')
 load([SaveFolder 'Anatomical.mat'], 'Anatomical_image') 
 AtlasMask(AtlasMask~=0) = 1;
-axis('image'); axis('equal');
+imagesc(Anatomical_image.*AtlasMask)
+axis('image'); axis('equal'); colormap('gray')
 
 saveas(gcf, [SaveFolder 'Anatomical_image_with_atlas.svg'], 'svg');
 
@@ -215,7 +237,7 @@ fid = fopen([SaveFolder 'hemoCorr_fluo.dat'],'w');
 fwrite(fid,hemoCorr_fluo,'*single');
 fclose(fid);
 
-% Visualise a bit (this will differ from appendix 3B because it's not based
+% Visualise a bit (this will differ from appendix 5B because it's not based
 % on triggered data).
 % Note: this is the same pixel and timing as figure 1D, but you can change
 % to explore a bit, just make sure you are inside the brain.
@@ -234,7 +256,7 @@ clear dat datnofilt hemoCorr_fluo
 [~, ~] = HemoCompute(SaveFolder, SaveFolder, 'gcamp', {'red', 'green'}, 1);
 
 %% Figure 1D - if you plot for M32
-% With this data you can replicate Figure 1D:
+% With this data you can replicate Figure 1D (M32-a1-r2):
 % (For cleaner way of plotting, see ExampleData_GCaMP_HbO_HbR, this is just 
 % to visualize quickly)
 coords = [300 300];
